@@ -9,6 +9,10 @@ module random.engine.pcg;
 import random.engine;
 import core.bitop;
 
+@safe:
+nothrow:
+@nogc:
+
 private template default_multiplier(T)
 {
     static if (is(T == ubyte))
@@ -75,7 +79,8 @@ mixin template unique_stream(T)
     enum is_mcg = false;
     T increment() const
     {
-        return cast(T)(*cast(ulong*)&this | 1);
+        T this_addr = (() @trusted => cast(T)(*cast(ulong*)&this))();
+        return this_addr | 1;
     }
     T stream()
     {
