@@ -72,7 +72,7 @@ private template mcg_unmultiplier(T)
     //TODO: ucent PCG_128BIT_CONSTANT(14422606686972528997ULL,
     //                                15009553638781119849ULL)
     else
-    static assert(0);
+        static assert(0);
 }
 mixin template unique_stream(T)
 {
@@ -405,6 +405,21 @@ private:
         return old_state;
     }
 public:
+    this(S seed = unpredictableSeed)
+    {
+        if (is_mcg)
+            state = seed | 3u;
+        else
+            state = bump(seed + increment());
+    }
+    static if can_specify_stream
+    {
+        this(S seed = unpredictableSeed, S stream_ = default_increment!S)
+        {
+            state = bump(seed + increment());
+            set_stream(stream_);
+        }
+    }
     O opCall()
     {
         static if(output_previous)
