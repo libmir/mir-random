@@ -403,9 +403,9 @@ public:
     O opCall()
     {
         static if(output_previous)
-        return output(base_generate0());
+            return output(base_generate0());
         else
-        return output(base_generate());
+            return output(base_generate());
     }
     //opCall(O upperbound)
     void popFrontN(S delta)
