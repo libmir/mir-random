@@ -429,16 +429,17 @@ private:
         return old_state;
     }
 public:
-    this(S seed = unpredictableSeed)
+    static if (!can_specify_stream)
+    this(S seed)
     {
         if (is_mcg)
             state = seed | 3u;
         else
             state = bump(seed + increment());
     }
-    static if can_specify_stream
+    else
     {
-        this(S seed = unpredictableSeed, S stream_ = default_increment!S)
+        this(S seed, S stream_ = default_increment!S)
         {
             state = bump(seed + increment());
             set_stream(stream_);
