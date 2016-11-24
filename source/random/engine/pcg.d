@@ -395,6 +395,7 @@ struct PermutedCongruentialEngine(O,                   // The output type
                                   S mult = default_multiplier!S)
 {
     @disable this(this);
+    @disable this();
     static if (stream == stream_t.none)
         mixin no_stream!S;
     else static if (stream == stream_t.unique)
