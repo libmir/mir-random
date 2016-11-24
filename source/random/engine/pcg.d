@@ -23,8 +23,8 @@ private template default_multiplier(T)
         enum uint default_multiplier = 747796405u;
     else static if (is(T == ulong))
         enum ulong default_multiplier = 6364136223846793005u;
-    //TODO: ucent PCG_128BIT_CONSTANT(2549297995355413924ULL,
-    //                                4865540595714422341ULL)
+    else static if (is(ucent) && is(T == ucent))
+        enum ucent default_multiplier = 0x2360ED051FC65DA44385DF649FCCF645;
     else
         static assert(0);
 }
@@ -39,8 +39,8 @@ private template default_increment(T)
         enum uint default_increment = 2891336453u;
     else static if (is(T == ulong))
         enum ulong default_increment = 1442695040888963407u;
-    //TODO: ucent PCG_128BIT_CONSTANT(6364136223846793005ULL,
-    //                                1442695040888963407ULL)
+    else static if (is(ucent) && is(T == ucent))
+        enum ucent default_increment = 0x5851F42D4C957F2D14057B7EF767814F;
     else
         static assert(0);
 }
@@ -54,23 +54,23 @@ private template mcg_multiplier(T)
         enum uint mcg_multiplier = 277803737u;
     else static if (is(T == ulong))
         enum ulong mcg_multiplier = 12605985483714917081u;
-    //TODO: ucent PCG_128BIT_CONSTANT(17766728186571221404ULL,
-    //                                12605985483714917081ULL)
+    else static if (is(ucent) && is(T == ucent))
+        enum ucent mcg_multiplier = 0x6BC8F622C397699CAEF17502108EF2D9;
     else
         static assert(0);
 }
 private template mcg_unmultiplier(T)
 {
     static if (is(T == ubyte))
-        enum ubyte mcg_multiplier = 105u;
+        enum ubyte mcg_unmultiplier = 105u;
     else static if (is(T == ushort))
-        enum ushort mcg_multiplier = 28009u;
+        enum ushort mcg_unmultiplier = 28009u;
     else static if (is(T == uint))
-        enum uint mcg_multiplier = 2897767785u;
+        enum uint mcg_unmultiplier = 2897767785u;
     else static if (is(T == ulong))
-        enum ulong mcg_multiplier = 15009553638781119849u;
-    //TODO: ucent PCG_128BIT_CONSTANT(14422606686972528997ULL,
-    //                                15009553638781119849ULL)
+        enum ulong mcg_unmultiplier = 15009553638781119849u;
+    else static if (is(ucent) && is(T == ucent))
+        enum ucent mcg_unmultiplier = 0xC827645E182BC965D04CA582ACB86D69;
     else
         static assert(0);
 }
