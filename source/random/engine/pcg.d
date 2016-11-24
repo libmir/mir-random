@@ -252,7 +252,7 @@ O rxs(O,S)(S s)
  * We thus provide a function to invert it.  This function is used to
  * for the "inside out" generator used by the extended generator.
  */
-O rxs_m_xs_foward(O,S)(S s) if(is(O == S))
+O rxs_m_xs_forward(O,S)(S s) if(is(O == S))
 {
     enum bits        = S.sizeof * 8;
     enum xtypebits   = O.sizeof * 8;
