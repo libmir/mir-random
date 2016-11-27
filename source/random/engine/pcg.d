@@ -28,9 +28,9 @@
  +
  +     http://www.pcg-random.org
  +/
-module random.engine.pcg;
+module mir.random.engine.pcg;
 
-import random.engine;
+import mir.random.engine;
 import core.bitop;
 import std.traits;
 
