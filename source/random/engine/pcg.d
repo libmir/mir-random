@@ -541,6 +541,6 @@ alias pcg32_fast   = PermutedCongruentialEngine!(xsh_rr!(uint,ulong),stream_t.no
 
 @safe unittest
 {
-    pcg32_unique gen(unpredictableSeed);
+    pcg32_unique gen = pcg32_unique(unpredictableSeed);
     gen();
 }
