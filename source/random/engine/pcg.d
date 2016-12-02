@@ -201,11 +201,11 @@ Uint unxorshift(Uint)(Uint x, size_t bits, size_t shift)
  + at *arbitrary* bit sizes.
  +/
 
-/*
- * XSH RS -- high xorshift, followed by a random shift
- *
- * Fast.  A good performer.
- */
+/+
+ + XSH RS -- high xorshift, followed by a random shift
+ +
+ + Fast.  A good performer.
+ +/
 O xsh_rs(O,Uint)(Uint state)
 {
     enum bits        = Uint.sizeof * 8;
@@ -228,11 +228,11 @@ O xsh_rs(O,Uint)(Uint state)
     O result = O(s >> (bottomspare - maxrandshift + rshift));
     return result;
 }
-/*
- * XSH RR -- high xorshift, followed by a random rotate
- *
- * Fast.  A good performer.  Slightly better statistically than XSH RS.
- */
+/+
+ + XSH RR -- high xorshift, followed by a random rotate
+ +
+ + Fast.  A good performer.  Slightly better statistically than XSH RS.
+ +/
 O xsh_rr(O,Uint)(Uint state)
 {
     enum bits        = Uint.sizeof * 8;
@@ -257,9 +257,9 @@ O xsh_rr(O,Uint)(Uint state)
     result = ror(result, cast(uint)amprot);
     return result;
 }
-/*
- * RXS -- random xorshift
- */
+/+
+ + RXS -- random xorshift
+ +/
 O rxs(O,Uint)(Uint state)
 {
     enum bits        = Uint.sizeof * 8;
@@ -277,17 +277,17 @@ O rxs(O,Uint)(Uint state)
     O result = state >> rshift;
     return result;
 }
-/*
- * RXS M XS -- random xorshift, mcg multiply, fixed xorshift
- *
- * The most statistically powerful generator, but all those steps
- * make it slower than some of the others.  We give it the rottenest jobs.
- *
- * Because it's usually used in contexts where the state type and the
- * result type are the same, it is a permutation and is thus invertable.
- * We thus provide a function to invert it.  This function is used to
- * for the "inside out" generator used by the extended generator.
- */
+/+
+ + RXS M XS -- random xorshift, mcg multiply, fixed xorshift
+ +
+ + The most statistically powerful generator, but all those steps
+ + make it slower than some of the others.  We give it the rottenest jobs.
+ +
+ + Because it's usually used in contexts where the state type and the
+ + result type are the same, it is a permutation and is thus invertable.
+ + We thus provide a function to invert it.  This function is used to
+ + for the "inside out" generator used by the extended generator.
+ +/
 O rxs_m_xs_forward(O,Uint)(Uint state) if(is(O == Uint))
 {
     enum bits        = Uint.sizeof * 8;
@@ -306,6 +306,7 @@ O rxs_m_xs_forward(O,Uint)(Uint state) if(is(O == Uint))
     result ^= result >> ((2U*xtypebits+2U)/3U);
     return result;
 }
+///ditto
 O rxs_m_xs_reverse(O,Uint)(Uint state) if(is(O == Uint))
 {
     enum bits        = Uint.sizeof * 8;
@@ -325,11 +326,11 @@ O rxs_m_xs_reverse(O,Uint)(Uint state) if(is(O == Uint))
     
     return s;
 }
-/*
- * XSL RR -- fixed xorshift (to low bits), random rotate
- *
- * Useful for 128-bit types that are split across two CPU registers.
- */
+/+
+ + XSL RR -- fixed xorshift (to low bits), random rotate
+ +
+ + Useful for 128-bit types that are split across two CPU registers.
+ +/
 O xsl_rr(O,Uint)(Uint state)
 {
     enum bits        = Uint.sizeof * 8;
@@ -369,6 +370,13 @@ private template half_size(Uint)
         static assert(0);
 }
 
+/+
+ + XSL RR RR -- fixed xorshift (to low bits), random rotate (both parts)
+ +
+ + Useful for 128-bit types that are split across two CPU registers.
+ + If you really want an invertable 128-bit RNG, I guess this is the one.
+ +/
+
 O xsl_rr_rr(O,Uint)(Uint state) if(is(O == Uint))
 {
     alias H = half_size!S;
@@ -399,6 +407,12 @@ O xsl_rr_rr(O,Uint)(Uint state) if(is(O == Uint))
     
 }
 
+/+
+ + XSH -- fixed xorshift (to high bits)
+ +
+ + Not available at 64-bits or less.
+ +/
+
 O xsh(O,Uint)(Uint state) if(Uint.sizeof > 8)
 {
     enum bits        = U.sizeof * 8;
@@ -412,6 +426,13 @@ O xsh(O,Uint)(Uint state) if(Uint.sizeof > 8)
     O result = state >> bottomspare;
     return result;
 }
+
+/+
++ XSL -- fixed xorshift (to low bits)
++
++ Not available at 64-bits or less.
++/
+
 O xsl(O,Uint)(Uint state) if(Uint.sizeof > 8)
 {
     enum bits        = S.sizeof * 8;
@@ -465,10 +486,7 @@ struct PermutedCongruentialEngine(alias output,        // Output function
 private:
     Uint bump(Uint state_)
     {
-        //static if (is_mcg)
-        //    return state_ * mult;
-        //else
-            return state_ * mult + increment;
+        return state_ * mult + increment;
     }
     
     Uint base_generate()
