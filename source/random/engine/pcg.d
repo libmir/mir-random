@@ -447,12 +447,12 @@ O xsl(O,Uint)(Uint state) if(Uint.sizeof > 8)
     return result;
 }
 
-@RandomEngine
 struct PermutedCongruentialEngine(alias output,        // Output function
                                   stream_t stream,     // The stream type
                                   bool output_previous,
                                   mult_...) if (mult_.length <= 1)
 {
+    enum isRandomEngine = true;
     alias p = Parameters!output;
     alias Uint = p[0];
     
