@@ -12,9 +12,6 @@ matrix:
   include:
     - {os: linux, d: ldc-1.1.0-beta5, env: ARCH="x86", addons: {apt: {packages: [[gcc-multilib]]}}}
     - {os: linux, d: dmd, env: ARCH="x86", addons: {apt: {packages: [[gcc-multilib]]}}}
-branches:
-  only:
-    - master
 script:
  - dub test --arch "$ARCH"
  - dub build --root=examples/flex_plot
