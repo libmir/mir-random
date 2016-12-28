@@ -4,7 +4,7 @@ import std.conv : text;
 import std.digest.sha;
 import core.sys.windows.wincrypt;
 import std.stdio;
-import core.sys.windows.winbase : GetLastError;
+import core.sys.windows.winbase;
 import core.sys.windows.winerror;
 
 alias DWORD = uint;

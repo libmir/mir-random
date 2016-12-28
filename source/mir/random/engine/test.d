@@ -128,16 +128,26 @@ version(Posix)
 
 version(Windows)
 {
+    // the windows header in core.runtime are broken for x64!
+    alias ULONG_PTR = size_t;
+    alias BOOL = bool;
+    alias DWORD = uint;
+    alias LPCWSTR = wchar*;
+    alias PBYTE = ubyte*;
+    alias HCRYPTPROV = ULONG_PTR;
+    alias LPCSTR = const(char)*;
 
-    version(DigitalMars)
-    pragma(lib, "Advapi32.lib");
+    import core.sys.windows.wincrypt : PROV_RSA_FULL, CRYPT_NEWKEYSET, CRYPT_VERIFYCONTEXT, CRYPT_SILENT;
 
-    import core.sys.windows.wincrypt : HCRYPTPROV;
-    private static HCRYPTPROV hProvider;
+    extern(Windows) BOOL CryptGenRandom(HCRYPTPROV, DWORD, PBYTE);
+    extern(Windows) BOOL CryptAcquireContextA(HCRYPTPROV*, LPCSTR, LPCSTR, DWORD, DWORD);
+    extern(Windows) BOOL CryptAcquireContextW(HCRYPTPROV*, LPCWSTR, LPCWSTR, DWORD, DWORD);
+    extern(Windows) BOOL CryptReleaseContext(HCRYPTPROV, ULONG_PTR);
+
+    private static ULONG_PTR hProvider;
 
     auto initGetRandom()
     {
-        import core.sys.windows.wincrypt;
         import core.sys.windows.winbase : GetLastError;
         import core.sys.windows.winerror : NTE_BAD_KEYSET;
 
@@ -146,13 +156,13 @@ version(Windows)
         // parameter to NULL and the dwFlags parameter to CRYPT_VERIFYCONTEXT
         // in all situations where you do not require a persisted key.
         // CRYPT_SILENT is intended for use with applications for which the UI cannot be displayed by the CSP.
-	    if (!CryptAcquireContextW(&hProvider, null, null, PROV_RSA_FULL, 0))
+	    if (!CryptAcquireContextW(&hProvider, null, null, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
 	    {
-	        writeln("FAIL");
+            writeln("FAIL");
             if (GetLastError() == NTE_BAD_KEYSET)
             {
                 // No default container was found. Attempt to create it.
-                if (!CryptAcquireContext(&hProvider, null, null, PROV_RSA_FULL, CRYPT_NEWKEYSET))
+                if (!CryptAcquireContextA(&hProvider, null, null, PROV_RSA_FULL, CRYPT_NEWKEYSET | CRYPT_SILENT))
                     return 1;
             }
             else
@@ -166,14 +176,12 @@ version(Windows)
 
     shared static ~this()
     {
-        import core.sys.windows.wincrypt : CryptReleaseContext;
         if (hProvider > 0)
-		    CryptReleaseContext(hProvider, 0);
+            CryptReleaseContext(hProvider, 0);
     }
 
     private bool getRandomImpl(Flag!"blocking" blocking)(ubyte[] buffer)
     {
-        import core.sys.windows.wincrypt : CryptGenRandom;
         import core.sys.windows.winbase : GetLastError;
         import core.sys.windows.winerror : ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER, NTE_BAD_UID, NTE_FAIL;
 
