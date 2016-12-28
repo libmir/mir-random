@@ -10,5 +10,8 @@
 	"license": "BSL-1.0",
 	"dependencies": {
 		"mir-math": "~>0.0.1"
-	}
+	},
+	"libs-windows" : [
+		"advapi32"
+	]
 }
