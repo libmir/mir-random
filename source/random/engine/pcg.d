@@ -563,17 +563,17 @@ alias pcg32_fast   = PermutedCongruentialEngine!(xsh_rr!(uint,ulong),stream_t.no
 //alias pcg64_oneseq = PermutedCongruentialEngine!(xsh_rr!(ulong,ucent),stream_t.oneseq,true);
 //alias pcg64_fast   = PermutedCongruentialEngine!(xsh_rr!(ulong,ucent),stream_t.none,true);
 
-alias pcg8_once_insecure  PermutedCongruentialEngine::rxs_m_xs_forward!(ubyte ,ubyte ,stream_t.specific,true);
-alias pcg16_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ushort,ushort,stream_t.specific,true);
-alias pcg32_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(uint  ,uint  ,stream_t.specific,true);
-alias pcg64_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ulong,ulong  ,stream_t.specific,true);
-//alias pcg128_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ucent,ucent,stream_t.specific,true);
+alias pcg8_once_insecure  = PermutedCongruentialEngine::rxs_m_xs_forward!(ubyte ,ubyte ,stream_t.specific,true);
+alias pcg16_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ushort,ushort,stream_t.specific,true);
+alias pcg32_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(uint  ,uint  ,stream_t.specific,true);
+alias pcg64_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ulong,ulong  ,stream_t.specific,true);
+//alias pcg128_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ucent,ucent,stream_t.specific,true);
 
-alias pcg8_once_insecure  PermutedCongruentialEngine::rxs_m_xs_forward!(ubyte ,ubyte ,stream_t.oneqseq,true);
-alias pcg16_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ushort,ushort,stream_t.oneqseq,true);
-alias pcg32_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(uint  ,uint  ,stream_t.oneqseq,true);
-alias pcg64_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ulong,ulong  ,stream_t.oneqseq,true);
-//alias pcg128_once_insecure PermutedCongruentialEngine::rxs_m_xs_forward!(ucent,ucent,stream_t.specific,true);
+alias pcg8_once_insecure  = PermutedCongruentialEngine::rxs_m_xs_forward!(ubyte ,ubyte ,stream_t.oneqseq,true);
+alias pcg16_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ushort,ushort,stream_t.oneqseq,true);
+alias pcg32_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(uint  ,uint  ,stream_t.oneqseq,true);
+alias pcg64_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ulong,ulong  ,stream_t.oneqseq,true);
+//alias pcg128_once_insecure = PermutedCongruentialEngine::rxs_m_xs_forward!(ucent,ucent,stream_t.specific,true);
 
 
 @safe unittest
