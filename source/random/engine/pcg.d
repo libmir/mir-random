@@ -153,7 +153,7 @@ mixin template specific_stream(Uint)
     enum can_specify_stream = true;
     void set_stream(Uint u)
     {
-        inc_ = (u << 1) | 1;
+        inc_ = cast(Uint)((u << 1) | 1);
     }
     enum size_t streams_pow2 = size_t.sizeof*8 -1u;
 }
@@ -486,7 +486,7 @@ struct PermutedCongruentialEngine(alias output,        // Output function
 private:
     Uint bump(Uint state_)
     {
-        return state_ * mult + increment;
+        return cast(Uint)(state_ * mult + increment);
     }
     
     Uint base_generate()
@@ -507,13 +507,13 @@ public:
         static if (is_mcg)
             state = seed | 3u;
         else
-            state = bump(seed + increment);
+            state = bump(cast(Uint)(seed + increment));
     }
     else
     {
         this(Uint seed, Uint stream_ = default_increment!Uint)
         {
-            state = bump(seed + increment);
+            state = bump(cast(Uint)(seed + increment));
             set_stream(stream_);
         }
     }
@@ -543,13 +543,13 @@ public:
             if (delta & 1)
             {
                 acc_mult *= _mult;
-                acc_plus = acc_plus * _mult + _inc;
+                acc_plus = cast(Uint)(acc_plus * _mult + _inc);
             }
             _inc  *= _mult + 1;
             _mult *= _mult;
             delta >>= 1;
         }
-        state = acc_mult*state + acc_plus;
+        state = cast(Uint)(acc_mult*state + acc_plus);
     }
 }
 
