@@ -150,8 +150,8 @@ version(linux)
     /*
      * Flags for getrandom(2)
      *
-     * GRND_NONBLOCK	Don't block and return EAGAIN instead
-     * GRND_RANDOM		Use the /dev/random pool instead of /dev/urandom
+     * GRND_NONBLOCK    Don't block and return EAGAIN instead
+     * GRND_RANDOM      Use the /dev/random pool instead of /dev/urandom
      */
     private enum GRND_NONBLOCK = 0x0001;
     private enum GRND_RANDOM = 0x0002;
@@ -182,6 +182,11 @@ version(linux)
         return 0;
     }
 
+    /*
+    *   If the GRND_NONBLOCK flag is set, then
+    *   getrandom() does not block in these cases, but instead
+    *   immediately returns -1 with errno set to EAGAIN.
+    */
     private ptrdiff_t getRandomImplSysNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         return syscall(GETRANDOM, cast(size_t) ptr, len, GRND_NONBLOCK);
@@ -204,11 +209,22 @@ version(Posix)
             fdURandom.fclose;
     }
 
+    /* The /dev/random device is a legacy interface which dates back to a
+       time where the cryptographic primitives used in the implementation of
+       /dev/urandom were not widely trusted.  It will return random bytes
+       only within the estimated number of bits of fresh noise in the
+       entropy pool, blocking if necessary.  /dev/random is suitable for
+       applications that need high quality randomness, and can afford
+       indeterminate delays.
+
+       When the entropy pool is empty, reads from /dev/random will block
+       until additional environmental noise is gathered.
+    */
     private ptrdiff_t getRandomImplFileBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         if (fdRandom is null)
         {
-            fdRandom = fopen("/dev/urandom", "r");
+            fdRandom = fopen("/dev/random", "r");
             if (fdRandom is null)
                 return -1;
         }
@@ -231,6 +247,14 @@ version(Posix)
         return 0;
     }
 
+    /**
+       When read, the /dev/urandom device returns random bytes using a
+       pseudorandom number generator seeded from the entropy pool.  Reads
+       from this device do not block (i.e., the CPU is not yielded), but can
+       incur an appreciable delay when requesting large amounts of data.
+       When read during early boot time, /dev/urandom may return data prior
+       to the entropy pool being initialized.
+    */
     private ptrdiff_t getRandomImplFileNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         if (fdURandom is null)
@@ -283,8 +307,8 @@ version(Windows)
         // parameter to NULL and the dwFlags parameter to CRYPT_VERIFYCONTEXT
         // in all situations where you do not require a persisted key.
         // CRYPT_SILENT is intended for use with applications for which the UI cannot be displayed by the CSP.
-	    if (!CryptAcquireContextW(&hProvider, null, null, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
-	    {
+        if (!CryptAcquireContextW(&hProvider, null, null, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+        {
             if (GetLastError() == NTE_BAD_KEYSET)
             {
                 // Attempt to create default container
@@ -328,9 +352,9 @@ extern(C) ptrdiff_t getRandomBlocking(void* ptr , size_t len) @nogc @safe nothro
 
         while(!CryptGenRandom(hProvider, len, cast(PBYTE) ptr)) {}
         return 0;
-	}
-	else
-	{
+    }
+    else
+    {
         version(linux)
         with(GET_RANDOM)
         {
@@ -395,12 +419,12 @@ extern(C) size_t getRandomNonBlocking(void* ptr, size_t len) @nogc @safe nothrow
             if (initGetRandom != 0)
                 return -1;
 
-	    if (!CryptGenRandom(hProvider, len, cast(PBYTE) ptr))
-	        return -1;
-	    return len;
-	}
-	else
-	{
+        if (!CryptGenRandom(hProvider, len, cast(PBYTE) ptr))
+            return -1;
+        return len;
+    }
+    else
+    {
         version(linux)
         with(GET_RANDOM)
         {
