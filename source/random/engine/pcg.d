@@ -619,7 +619,7 @@ private alias AliasSeq(T...) = T;
                            pcg8_oneseq_once_insecure,pcg16_oneseq_once_insecure,pcg32_oneseq_once_insecure,
                            pcg64_oneseq_once_insecure))
     {
-        gen = RNG(unpredictableSeed);
+        auto gen = RNG(unpredictableSeed);
         gen();
     }
 }
