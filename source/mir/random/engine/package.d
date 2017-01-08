@@ -506,7 +506,7 @@ alias genRandomNonBlocking = mir_random_genRandomNonBlocking;
     assert(buf.sum > 0, "Only zero points generated");
 }
 
-//@nogc nothrow
+@nogc nothrow
 unittest
 {
     ubyte[10] buf;
