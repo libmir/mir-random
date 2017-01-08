@@ -101,7 +101,7 @@ pragma(inline, true)
         else
         version(Windows)
         {
-            import core.sys.windows.winbase : GetCurrentProccessId, GetCurrentThreadId;
+            import core.sys.windows.winbase : GetCurrentProcessId, GetCurrentThreadId;
             auto pid = cast(uint) GetCurrentProcessId;
             auto tid = cast(uint) GetCurrentThreadId;
         }
