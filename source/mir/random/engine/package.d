@@ -313,7 +313,7 @@ version(Posix)
 
         auto res = fread(ptr, 1, len, fdURandom);
         // check for possible errors
-        if (res == 0)
+        if (res != len)
         {
             if (fdURandom.ferror)
                 return -1;
