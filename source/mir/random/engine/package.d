@@ -52,11 +52,6 @@ template isSaturatedRandomEngine(T)
         enum isSaturatedRandomEngine = false;
 }
 
-version(Darwin)
-private
-extern(C) nothrow @nogc
-ulong mach_absolute_time();
-
 /**
 A "good" seed for initializing random number engines. Initializing
 with $(D_PARAM unpredictableSeed) makes engines generate different
@@ -74,30 +69,20 @@ pragma(inline, true)
     {
         version(Windows)
         {
-            import core.sys.windows.windows;
-            import core.sys.windows.winbase;
+            import core.sys.windows.winbase : QueryPerformanceCounter;
             ulong ticks = void;
             QueryPerformanceCounter(cast(long*)&ticks);
         }
         else
         version(Darwin)
         {
+            import core.time : mach_absolute_time;
             ulong ticks = mach_absolute_time();
         }
         else
         version(Posix)
         {
-            version(linux)
-                import core.sys.linux.time;
-            else
-            version(FreeBSD)
-                import core.sys.freebsd.time;
-            else
-            version(Solaris)
-                import core.sys.solaris.time;
-
-
-            import core.sys.posix.time;
+            import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
             timespec ts;
             if(clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
             {
@@ -108,14 +93,15 @@ pragma(inline, true)
         }
         version(Posix)
         {
-            import core.sys.posix.unistd;
-            import core.sys.posix.pthread;
+            import core.sys.posix.unistd : getpid;
+            import core.sys.posix.pthread : pthread_self;
             auto pid = cast(uint) getpid;
             auto tid = cast(uint) pthread_self();
         }
         else
         version(Windows)
         {
+            import core.sys.windows.winbase : GetCurrentProccessId, GetCurrentThreadId;
             auto pid = cast(uint) GetCurrentProcessId;
             auto tid = cast(uint) GetCurrentThreadId;
         }
