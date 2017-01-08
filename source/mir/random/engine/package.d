@@ -69,8 +69,64 @@ pragma(inline, true)
 @property size_t unpredictableSeed() @trusted nothrow @nogc
 {
     size_t seed;
-    //getRandomBlocking(&seed, seed.sizeof);
-    seed = 1;
+    // fallback to old time/thread-based implementation in case of errors
+    if (genRandomBlocking(&seed, seed.sizeof) < 0)
+    {
+        version(Windows)
+        {
+            import core.sys.windows.windows;
+            import core.sys.windows.winbase;
+            ulong ticks = void;
+            QueryPerformanceCounter(cast(long*)&ticks);
+        }
+        else
+        version(Darwin)
+        {
+            ulong ticks = mach_absolute_time();
+        }
+        else
+        version(Posix)
+        {
+            version(linux)
+                import core.sys.linux.time;
+            else
+            version(FreeBSD)
+                import core.sys.freebsd.time;
+            else
+            version(Solaris)
+                import core.sys.solaris.time;
+
+
+            import core.sys.posix.time;
+            timespec ts;
+            if(clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+            {
+                import core.internal.abort : abort;
+                abort("Call to clock_gettime failed.");
+            }
+            ulong ticks = (cast(ulong) ts.tv_sec << 32) ^ ts.tv_nsec;
+        }
+        version(Posix)
+        {
+            import core.sys.posix.unistd;
+            import core.sys.posix.pthread;
+            auto pid = cast(uint) getpid;
+            auto tid = cast(uint) pthread_self();
+        }
+        else
+        version(Windows)
+        {
+            auto pid = cast(uint) GetCurrentProcessId;
+            auto tid = cast(uint) GetCurrentThreadId;
+        }
+        ulong k = ((cast(ulong)pid << 32) ^ tid) + ticks;
+        k ^= k >> 33;
+        k *= 0xff51afd7ed558ccd;
+        k ^= k >> 33;
+        k *= 0xc4ceb9fe1a85ec53;
+        k ^= k >> 33;
+        return cast(size_t)k;
+    }
     return seed;
 }
 
@@ -110,13 +166,13 @@ version(linux)
         AVAILABLE,
     }
 
-    // getrandom was introduced in 3.17
-    private static GET_RANDOM hasGetRandom = GET_RANDOM.UNINTIALIZED;
+    // getrandom was introduced in Linux 3.17
+    private __gshared GET_RANDOM hasGetRandom = GET_RANDOM.UNINTIALIZED;
 
     import core.sys.posix.sys.utsname : utsname;
 
     // druntime isn't properly annotated
-    extern(C) int uname(utsname* __name) @nogc nothrow;
+    private extern(C) int uname(utsname* __name) @nogc nothrow;
 
     // checks whether the Linux kernel supports getRandom by looking at the
     // reported version
@@ -145,7 +201,7 @@ version(linux)
         return false;
     }
 
-    extern(C) int syscall(size_t ident, size_t n, size_t arg1, size_t arg2) @nogc nothrow;
+    private extern(C) int syscall(size_t ident, size_t n, size_t arg1, size_t arg2) @nogc nothrow;
 
     /*
      * Flags for getrandom(2)
@@ -168,16 +224,20 @@ version(linux)
         interrupted by signals.  No such guarantees apply for larger buffer
         sizes.
     */
-    private ptrdiff_t getRandomImplSysBlocking(void* ptr, size_t len) @nogc @trusted nothrow
+    private ptrdiff_t genRandomImplSysBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
-        auto genBytes = 0;
-        while (genBytes < len)
+        while (len > 0)
         {
-            auto res = syscall(GETRANDOM, cast(size_t) ptr + genBytes, len - genBytes, 0);
+            auto res = syscall(GETRANDOM, cast(size_t) ptr, len, 0);
             if (res >= 0)
-                genBytes -= res;
+            {
+                len -= res;
+                ptr += res;
+            }
             else
+            {
                 return res;
+            }
         }
         return 0;
     }
@@ -187,7 +247,7 @@ version(linux)
     *   getrandom() does not block in these cases, but instead
     *   immediately returns -1 with errno set to EAGAIN.
     */
-    private ptrdiff_t getRandomImplSysNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
+    private ptrdiff_t genRandomImplSysNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         return syscall(GETRANDOM, cast(size_t) ptr, len, GRND_NONBLOCK);
     }
@@ -197,10 +257,10 @@ version(Posix)
 {
     import core.stdc.stdio : fclose, feof, ferror, fopen, fread;
     alias IOType = typeof(fopen("a", "b"));
-    static private IOType fdRandom;
-    static private IOType fdURandom;
+    private __gshared IOType fdRandom;
+    private __gshared IOType fdURandom;
 
-    shared static ~this()
+    extern(C) shared static ~this()
     {
         if (fdRandom !is null)
             fdRandom.fclose;
@@ -220,7 +280,7 @@ version(Posix)
        When the entropy pool is empty, reads from /dev/random will block
        until additional environmental noise is gathered.
     */
-    private ptrdiff_t getRandomImplFileBlocking(void* ptr, size_t len) @nogc @trusted nothrow
+    private ptrdiff_t genRandomImplFileBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         if (fdRandom is null)
         {
@@ -229,12 +289,13 @@ version(Posix)
                 return -1;
         }
 
-        auto genBytes = 0;
-        while (genBytes < len)
+        while (len > 0)
         {
-            genBytes -= fread(ptr + genBytes, 1, len - genBytes, fdRandom);
+            auto res = fread(ptr, 1, len, fdRandom);
+            len -= res;
+            ptr += res;
             // check for possible permanent errors
-            if (genBytes > 0)
+            if (len != 0)
             {
                 if (fdRandom.ferror)
                     return -1;
@@ -255,7 +316,7 @@ version(Posix)
        When read during early boot time, /dev/urandom may return data prior
        to the entropy pool being initialized.
     */
-    private ptrdiff_t getRandomImplFileNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
+    private ptrdiff_t genRandomImplFileNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
     {
         if (fdURandom is null)
         {
@@ -289,12 +350,12 @@ version(Windows)
     private alias HCRYPTPROV = ULONG_PTR;
     private alias LPCSTR = const(char)*;
 
-    extern(Windows) BOOL CryptGenRandom(HCRYPTPROV, DWORD, PBYTE) @nogc @safe nothrow;
-    extern(Windows) BOOL CryptAcquireContextA(HCRYPTPROV*, LPCSTR, LPCSTR, DWORD, DWORD) @nogc nothrow;
-    extern(Windows) BOOL CryptAcquireContextW(HCRYPTPROV*, LPCWSTR, LPCWSTR, DWORD, DWORD) @nogc nothrow;
-    extern(Windows) BOOL CryptReleaseContext(HCRYPTPROV, ULONG_PTR) @nogc nothrow;
+    private extern(Windows) BOOL CryptGenRandom(HCRYPTPROV, DWORD, PBYTE) @nogc @safe nothrow;
+    private extern(Windows) BOOL CryptAcquireContextA(HCRYPTPROV*, LPCSTR, LPCSTR, DWORD, DWORD) @nogc nothrow;
+    private extern(Windows) BOOL CryptAcquireContextW(HCRYPTPROV*, LPCWSTR, LPCWSTR, DWORD, DWORD) @nogc nothrow;
+    private extern(Windows) BOOL CryptReleaseContext(HCRYPTPROV, ULONG_PTR) @nogc nothrow;
 
-    private static ULONG_PTR hProvider;
+    private __gshared ULONG_PTR hProvider;
 
     private auto initGetRandom() @nogc @trusted nothrow
     {
@@ -324,7 +385,7 @@ version(Windows)
         return 0;
     }
 
-    shared static ~this()
+    extern(C) shared static ~this()
     {
         if (hProvider > 0)
             CryptReleaseContext(hProvider, 0);
@@ -342,7 +403,7 @@ Params:
 Returns:
     A non-zero integer if an error occurred.
 */
-extern(C) ptrdiff_t getRandomBlocking(void* ptr , size_t len) @nogc @safe nothrow
+extern(C) ptrdiff_t mir_random_genRandomBlocking(void* ptr , size_t len) @nogc @trusted nothrow
 {
     version(Windows)
     {
@@ -363,22 +424,25 @@ extern(C) ptrdiff_t getRandomBlocking(void* ptr , size_t len) @nogc @safe nothro
 
             // Linux >= 3.17 has getRandom
             if (hasGetRandom == AVAILABLE)
-                return getRandomImplSysBlocking(ptr, len);
+                return genRandomImplSysBlocking(ptr, len);
             else
-                return getRandomImplFileBlocking(ptr, len);
+                return genRandomImplFileBlocking(ptr, len);
         }
         else
         {
-            return getRandomImplFileBlocking(ptr, len);
+            return genRandomImplFileBlocking(ptr, len);
         }
     }
 }
+
+/// ditto
+alias genRandomBlocking = mir_random_genRandomBlocking;
 
 ///
 @safe nothrow unittest
 {
     ubyte[] buf = new ubyte[10];
-    getRandomBlocking(&buf[0], buf.length);
+    genRandomBlocking(&buf[0], buf.length);
 
     import std.algorithm.iteration : sum;
     assert(buf.sum > 0, "Only zero points generated");
@@ -387,7 +451,7 @@ extern(C) ptrdiff_t getRandomBlocking(void* ptr , size_t len) @nogc @safe nothro
 @nogc nothrow unittest
 {
     ubyte[10] buf;
-    getRandomBlocking(buf.ptr, buf.length);
+    genRandomBlocking(buf.ptr, buf.length);
 
     int sum;
     foreach (b; buf)
@@ -401,7 +465,7 @@ Fills a buffer with random data.
 If not enough entropy has been gathered, it won't block.
 Hence the error code should be inspected.
 
-On Linux >= 3.17 getRandomNonBlocking is guaranteed to succeed for 256 bytes and
+On Linux >= 3.17 genRandomNonBlocking is guaranteed to succeed for 256 bytes and
 less.
 
 Params:
@@ -411,7 +475,7 @@ Params:
 Returns:
     The number of bytes filled - a negative number of an error occurred
 */
-extern(C) size_t getRandomNonBlocking(void* ptr, size_t len) @nogc @safe nothrow
+extern(C) size_t mir_random_genRandomNonBlocking(void* ptr, size_t len) @nogc @trusted nothrow
 {
     version(Windows)
     {
@@ -433,31 +497,34 @@ extern(C) size_t getRandomNonBlocking(void* ptr, size_t len) @nogc @safe nothrow
 
             // Linux >= 3.17 has getRandom
             if (hasGetRandom == AVAILABLE)
-                return getRandomImplSysNonBlocking(ptr, len);
+                return genRandomImplSysNonBlocking(ptr, len);
             else
-                return getRandomImplFileNonBlocking(ptr, len);
+                return genRandomImplFileNonBlocking(ptr, len);
         }
         else
         {
-            return getRandomImplFileNonBlocking(ptr, len);
+            return genRandomImplFileNonBlocking(ptr, len);
         }
     }
 }
+/// ditto
+alias genRandomNonBlocking = mir_random_genRandomNonBlocking;
 
 ///
 @safe nothrow unittest
 {
     ubyte[] buf = new ubyte[10];
-    getRandomNonBlocking(&buf[0], buf.length);
+    genRandomNonBlocking(&buf[0], buf.length);
 
     import std.algorithm.iteration : sum;
     assert(buf.sum > 0, "Only zero points generated");
 }
 
-@nogc nothrow unittest
+//@nogc nothrow
+unittest
 {
     ubyte[10] buf;
-    getRandomNonBlocking(buf.ptr, buf.length);
+    genRandomNonBlocking(buf.ptr, buf.length);
 
     int sum;
     foreach (b; buf)
