@@ -12,11 +12,6 @@ environment:
     arch: x64
 
 skip_tags: true
-branches:
-  only:
-    - master
-    - stable
-
 install:
   - ps: function SetUpDCompiler
         {
