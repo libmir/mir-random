@@ -554,17 +554,17 @@ public:
         // Even though delta is an unsigned integer, we can pass a
         // signed integer to go backwards, it just goes "the long way round".
         
-        Uint acc_mult, acc_plus;
-        Uint _inc = increment, _mult = mult;
+        Uint acc_mult = 1, acc_plus = 0;
+        Uint cur_plus = increment, cur_mult = mult;
         while (delta > 0)
         {
             if (delta & 1)
             {
-                acc_mult *= _mult;
-                acc_plus = cast(Uint)(acc_plus * _mult + _inc);
+                acc_mult *= cur_mult;
+                acc_plus = cast(Uint)(acc_plus * cur_mult + cur_plus);
             }
-            _inc  *= _mult + 1;
-            _mult *= _mult;
+            cur_plus  *= cur_mult + 1;
+            cur_mult *= cur_mult;
             delta >>= 1;
         }
         state = cast(Uint)(acc_mult*state + acc_plus);
