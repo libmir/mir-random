@@ -104,6 +104,11 @@ private template mcg_unmultiplier(Uint)
         static assert(0);
 }
 
+private template default_increment_unset_stream(Uint)
+{
+    enum default_increment_unset_stream = (default_increment!Uint & ~1) >> 1;
+}
+
 /// Increment for LCG portion of the PCG is the address of the RNG
 mixin template unique_stream(Uint)
 {
@@ -121,6 +126,7 @@ mixin template unique_stream(Uint)
     enum size_t streams_pow2 = Uint.sizeof < size_t.sizeof ? Uint.sizeof :
                                                              size_t.sizeof - 1u;
 }
+
 
 /// Increment is 0. The LCG portion of the PCG is an MCG.
 mixin template no_stream(Uint)
@@ -150,6 +156,7 @@ mixin template specific_stream(Uint)
     enum is_mcg = false;
     Uint inc_ = default_increment!Uint;
     @property Uint increment() { return inc_; }
+    @property void increment(Uint u) { inc_ = u;}
     enum can_specify_stream = true;
     void set_stream(Uint u)
     {
@@ -471,9 +478,9 @@ struct PermutedCongruentialEngine(alias output,        // Output function
                                   mult_...) if (mult_.length <= 1)
 {
     enum isRandomEngine = true;
-    alias p = Parameters!output;
-    alias Uint = p[0];
     
+    alias Uint  = TemplateArgsOf!output [1];
+
     static if (mult_.length == 0)
         enum mult = default_multiplier!Uint;
     else
@@ -529,7 +536,7 @@ public:
     }
     else
     {
-        this(Uint seed, Uint stream_ = default_increment!Uint)
+        this(Uint seed, Uint stream_ = default_increment_unset_stream!Uint)
         {
             state = bump(cast(Uint)(seed + increment));
             set_stream(stream_);
@@ -628,6 +635,7 @@ private alias AliasSeq(T...) = T;
 {
     auto gen = pcg32(0x198c8585);
     gen.skip(1000);
+    assert(gen()== 0xd187a760);
     auto gen2 = pcg32(0x198c8585);
     
     foreach(_; 0 .. 1000)
