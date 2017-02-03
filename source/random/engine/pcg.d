@@ -28,9 +28,9 @@
  +
  +     http://www.pcg-random.org
  +/
-module mir.random.engine.pcg;
+module random.engine.pcg;
 
-import mir.random.engine;
+import random.engine;
 import core.bitop;
 import std.traits;
 
@@ -614,6 +614,7 @@ private alias AliasSeq(T...) = T;
 
 @safe unittest
 {
+    
     foreach(RNG; AliasSeq!(pcg32,pcg32_unique,pcg32_oneseq,pcg32_fast,
                            pcg8_once_insecure,pcg16_once_insecure,pcg32_once_insecure,pcg64_once_insecure,
                            pcg8_oneseq_once_insecure,pcg16_oneseq_once_insecure,pcg32_oneseq_once_insecure,
@@ -622,4 +623,17 @@ private alias AliasSeq(T...) = T;
         auto gen = RNG(cast(RNG.Uint)unpredictableSeed);
         gen();
     }
+    {
+        auto gen = pcg32(0x198c8585);
+        gen.skip(1000);
+        assert(gen() == 0xd187a760);
+        auto gen2 = pcg32(0x198c8585);
+        foreach(_; 0 .. 1000)
+            gen2();
+        assert(gen2() == 0xd187a760);
+        assert(gen() == gen2());
+    }
+
+ 
+    
 }
