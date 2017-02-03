@@ -2,10 +2,10 @@
 Uniform random engines.
 
 Copyright: Ilya Yaroshenko 2016-.
-License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+License:  $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Authors: Ilya Yaroshenko
 +/
-module random.engine;
+module mir.random.engine;
 
 version (OSX)
     version = Darwin;
@@ -18,28 +18,31 @@ else version (WatchOS)
 
 import std.traits;
 
-import random.engine.mersenne_twister;
-
-/// User Defined Attribute definition for uniform Random Engine.
-enum RandomEngine;
+import mir.random.engine.mersenne_twister;
 
 /++
 Test if T is a random engine.
+A type should define `enum isRandomEngine = true;` to be a random engine.
 +/
 template isRandomEngine(T)
 {
-    private alias R = typeof(T.init());
-    static if (hasUDA!(T, RandomEngine) && isUnsigned!R)
-        enum isRandomEngine = is(typeof({
-            enum max = T.max;
-            static assert(is(typeof(T.max) == R));
-            }));
-    else enum isRandomEngine = false; 
+    static if (is(typeof(T.isRandomEngine) : bool) && is(typeof(T.init())))
+    {
+        private alias R = typeof(T.init());
+        static if (T.isRandomEngine && isUnsigned!R)
+            enum isRandomEngine = is(typeof({
+                enum max = T.max;
+                static assert(is(typeof(T.max) == R));
+                }));
+        else enum isRandomEngine = false;
+    }
+    else enum isRandomEngine = false;
 }
 
 /++
 Test if T is a saturated random-bit generator.
 A random number generator is saturated if `T.max == ReturnType!T.max`.
+A type should define `enum isRandomEngine = true;` to be a random engine.
 +/
 template isSaturatedRandomEngine(T)
 {
@@ -63,12 +66,14 @@ Returns:
 A single unsigned integer seed value, different on each successive call
 */
 pragma(inline, true)
-@property ulong unpredictableSeed() @trusted nothrow @nogc
+@property size_t unpredictableSeed() @trusted nothrow @nogc
 {
     version(Windows)
     {
+        import core.sys.windows.windows;
+        import core.sys.windows.winbase;
         ulong ticks = void;
-        QueryPerformanceCounter(&ticks);
+        QueryPerformanceCounter(cast(long*)&ticks);
     }
     else
     version(Darwin)
@@ -78,9 +83,19 @@ pragma(inline, true)
     else
     version(Posix)
     {
+        version(linux)
+            import core.sys.linux.time;
+        else
+        version(FreeBSD)
+            import core.sys.freebsd.time;
+        else
+        version(Solaris)
+            import core.sys.solaris.time;
+
+
         import core.sys.posix.time;
         timespec ts;
-        if(clock_gettime(clockArg, &ts) != 0)
+        if(clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
         {
             import core.internal.abort : abort;
             abort("Call to clock_gettime failed.");
@@ -97,8 +112,6 @@ pragma(inline, true)
     else
     version(Windows)
     {
-        import core.sys.windows.windows;
-        import core.sys.windows.winbase;
         auto pid = cast(uint) GetCurrentProcessId;
         auto tid = cast(uint) GetCurrentThreadId;
     }
@@ -108,13 +121,13 @@ pragma(inline, true)
     k ^= k >> 33;
     k *= 0xc4ceb9fe1a85ec53;
     k ^= k >> 33;
-    return k;
+    return cast(size_t)k;
 }
 
 ///
 @safe unittest
 {
-    auto rnd = Random(cast(size_t)unpredictableSeed);
+    auto rnd = Random(unpredictableSeed);
     auto n = rnd();
     static assert(is(typeof(n) == size_t));
 }
@@ -126,7 +139,10 @@ generators. You may want to use it if (1) you need to generate some
 nice random numbers, and (2) you don't care for the minutiae of the
 method being used.
 +/
-alias Random = Mt19937;
+static if (is(size_t == uint))
+    alias Random = Mt19937;
+else
+    alias Random = Mt19937_64;
 
 ///
 unittest
