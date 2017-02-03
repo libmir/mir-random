@@ -32,7 +32,7 @@ module mir.random.engine.pcg;
 
 import mir.random.engine;
 import core.bitop;
-import std.traits;
+import std.traits : ReturnType, TemplateArgsOf;
 
 @safe:
 nothrow:
