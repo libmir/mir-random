@@ -246,6 +246,7 @@ version(Posix)
     private __gshared IOType fdRandom;
     private __gshared IOType fdURandom;
 
+    ///
     extern(C) shared static ~this()
     {
         if (fdRandom !is null)
@@ -371,11 +372,40 @@ version(Windows)
         return 0;
     }
 
+    ///
     extern(C) shared static ~this()
     {
         if (hProvider > 0)
             CryptReleaseContext(hProvider, 0);
     }
+}
+
+/**
+Initialize the mir random engines.
+This constructor needs to be called once $(I before)
+other calls in `mir.random.engine`.
+*/
+extern(C) void mir_random_engine_ctor()
+{
+    version(Windows)
+    {
+        if (hProvider == 0)
+            initGetRandom;
+    }
+
+    version(linux)
+    with(GET_RANDOM)
+    {
+        if (hasGetRandom == UNINTIALIZED)
+            hasGetRandom = initHasGetRandom ? AVAILABLE : NOT_AVAILABLE;
+    }
+
+}
+
+// automatically calls the extern(C) module initializer
+extern(C) shared static this()
+{
+    mir_random_engine_ctor();
 }
 
 /**
@@ -393,10 +423,6 @@ extern(C) ptrdiff_t mir_random_genRandomBlocking(void* ptr , size_t len) @nogc @
 {
     version(Windows)
     {
-        if (hProvider == 0)
-            if (initGetRandom != 0)
-                return -1;
-
         while(!CryptGenRandom(hProvider, len, cast(PBYTE) ptr)) {}
         return 0;
     }
@@ -405,9 +431,6 @@ extern(C) ptrdiff_t mir_random_genRandomBlocking(void* ptr , size_t len) @nogc @
         version(linux)
         with(GET_RANDOM)
         {
-            if (hasGetRandom == UNINTIALIZED)
-                hasGetRandom = initHasGetRandom ? AVAILABLE : NOT_AVAILABLE;
-
             // Linux >= 3.17 has getRandom
             if (hasGetRandom == AVAILABLE)
                 return genRandomImplSysBlocking(ptr, len);
@@ -465,10 +488,6 @@ extern(C) size_t mir_random_genRandomNonBlocking(void* ptr, size_t len) @nogc @t
 {
     version(Windows)
     {
-        if (hProvider == 0)
-            if (initGetRandom != 0)
-                return -1;
-
         if (!CryptGenRandom(hProvider, len, cast(PBYTE) ptr))
             return -1;
         return len;
@@ -478,9 +497,6 @@ extern(C) size_t mir_random_genRandomNonBlocking(void* ptr, size_t len) @nogc @t
         version(linux)
         with(GET_RANDOM)
         {
-            if (hasGetRandom == UNINTIALIZED)
-                hasGetRandom = initHasGetRandom ? AVAILABLE : NOT_AVAILABLE;
-
             // Linux >= 3.17 has getRandom
             if (hasGetRandom == AVAILABLE)
                 return genRandomImplSysNonBlocking(ptr, len);
