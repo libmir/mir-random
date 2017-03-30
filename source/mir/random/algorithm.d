@@ -2,9 +2,6 @@
 Authors: Ilya Yaroshenko, documentation is partially based on Phobos.
 Copyright: Copyright, Ilya Yaroshenko 2016-.
 License:  $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
-
-Macros:
-Note_pointer = Note: $(UL $(LI The structure holds a pointer to a generator.) $(LI The structure must not be copied (explicitly or implicitly) outside from a function.))
 +/
 module mir.random.algorithm;
 
@@ -19,7 +16,7 @@ public import mir.random.engine;
 Field interface for uniform random bit generators.
 It used to construct ndslices in combination with `slicedField` and `slice`.
 
-Note_pointer
+Note: $(UL $(LI The structure holds a pointer to a generator.) $(LI The structure must not be copied (explicitly or implicitly) outside from a function.))
 +/
 struct RandomField(G, D)
     if (isSaturatedRandomEngine!G)
@@ -98,7 +95,7 @@ unittest
 /++
 Range interface for uniform random bit generators.
 
-Note_pointer
+Note: $(UL $(LI The structure holds a pointer to a generator.) $(LI The structure must not be copied (explicitly or implicitly) outside from a function.))
 +/
 struct RandomRange(G, D)
     if (isSaturatedRandomEngine!G)
@@ -378,7 +375,7 @@ unittest
 Lazy input or forward range containing a random sample.
 $(LREF VitterStrides) is used to skip elements.
 Complexity: O(n)
-Note_pointer
+Note: $(UL $(LI The structure holds a pointer to a generator.) $(LI The structure must not be copied (explicitly or implicitly) outside from a function.))
 +/
 struct RandomSample(Range, G)
 {
