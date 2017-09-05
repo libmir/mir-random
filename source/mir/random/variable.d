@@ -34,6 +34,8 @@ $(BOOKTABLE $(H2 Random Variables),
 and $(HTTP en.wikipedia.org/wiki/Uniform_distribution_(continuous),
     Uniform distribution (continuous)))
     $(RVAR Weibull, $(WIKI_D Weibull))
+    $(RVAR Sphere, Uniform distribution on a unit-sphere)
+    $(RVAR Simplex, Uniform distribution on a standard-simplex)
 )
 
 Authors: Ilya Yaroshenko, Sebastian Wilzbach (DiscreteVariable)
@@ -70,7 +72,7 @@ template isRandomVariable(T)
 {
     static if (is(typeof(T.isRandomVariable) : bool))
     {
-        enum isRandomVariable = T.isRandomVariable && 
+        enum isRandomVariable = T.isRandomVariable &&
             is(typeof({
                 auto gen = Random(1);
                 T rv;
@@ -508,7 +510,7 @@ struct FisherFVariable(T)
         auto y = yv(gen);
         x *= _d1;
         y *= _d2;
-        return x / y; 
+        return x / y;
     }
 
     ///
@@ -1344,7 +1346,7 @@ unittest
 
     // sample from the discrete distribution
     auto obs = new uint[weights.length];
-    
+
     foreach (i; 0..1000)
         obs[ds(gen)]++;
 
@@ -1463,7 +1465,7 @@ struct PiecewiseConstantVariable(T, W = T)
         assert(weights.length);
         assert(intervals.length == weights.length + 1);
         dv = DiscreteVariable!W(weights, cumulative);
-        this.intervals = intervals; 
+        this.intervals = intervals;
     }
 
     /++
@@ -1623,4 +1625,111 @@ unittest
     13 **
     14 *
     +/
+}
+
+/++
+$(Uniform distribution on a sphere).
+Returns: `X ~ 1` with `X[0]^^2 + .. + X[$-1]^^2 = 1`
++/
+struct SphereVariable(T)
+    if (isFloatingPoint!T)
+{
+    ///
+    enum isRandomVariable = true;
+
+    private NormalVariable!T norm;
+    private T[] buf;
+
+    /++ dimension of the sphere +/
+    size_t dim() const @property
+    {
+        return buf.length;
+    }
+
+    ///
+    this(size_t dim)
+    {
+        assert(dim >= 1);
+        buf = new T[dim];
+    }
+
+    /++ result.length == dim +/
+    T[] opCall(G)(ref G gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        assert(buf.length >= 1, "uninitialized SphereVariable");
+
+        T sum = 0;
+        for(size_t i = 0; i < buf.length; ++i)
+        {
+            buf[i] = norm(gen);
+            sum += buf[i]*buf[i];
+        }
+        buf[] /= sqrt(sum);
+        return buf;
+    }
+}
+
+///
+unittest
+{
+    auto gen = Random(unpredictableSeed);
+    auto rv = SphereVariable!double(3);
+    auto x = rv(gen);
+    assert(x.length == 3);
+    assert(fabs(x[0]*x[0] + x[1]*x[1] + x[2]*x[2] - 1) < 1e-10);
+}
+
+/++
+$(Uniform distribution on a sphere).
+Returns: `X ~ 1` with `X[i] >= 0` and `X[0] + .. + X[$-1] = 1`
++/
+struct SimplexVariable(T)
+    if (isFloatingPoint!T)
+{
+    ///
+    enum isRandomVariable = true;
+
+    import std.algorithm : sort;
+    private T[] buf;
+
+    /++ dimension of the simplex +/
+    size_t dim() const @property
+    {
+        return buf.length;
+    }
+
+    ///
+    this(size_t dim)
+    {
+        assert(dim >= 1);
+        buf = new T[dim];
+    }
+
+    /++ result.length == dim +/
+    T[] opCall(G)(ref G gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        assert(buf.length >= 0, "uninitialized SphereVariable");
+
+        for(size_t i = 0; i < buf.length-1; ++i)
+            buf[i] = gen.rand!T.fabs;
+        buf[$-1] = T(1);
+
+        sort(buf[]);
+        for(size_t i = buf.length-1; i > 0; --i)
+            buf[i] = buf[i] - buf[i-1];
+        return buf;
+    }
+}
+
+///
+unittest
+{
+    auto gen = Random(unpredictableSeed);
+    auto rv = SimplexVariable!double(3);
+    auto x = rv(gen);
+    assert(x.length == 3);
+    assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
+    assert(fabs(x[0] + x[1] + x[2] - 1) < 1e-10);
 }
