@@ -36,6 +36,7 @@ and $(HTTP en.wikipedia.org/wiki/Uniform_distribution_(continuous),
     $(RVAR Weibull, $(WIKI_D Weibull))
     $(RVAR Sphere, Uniform distribution on a unit-sphere)
     $(RVAR Simplex, Uniform distribution on a standard-simplex)
+    $(RVAR Dirichlet, $(WIKI_D Dirichlet))
 )
 
 Authors: Ilya Yaroshenko, Sebastian Wilzbach (DiscreteVariable)
@@ -1728,6 +1729,65 @@ unittest
 {
     auto gen = Random(unpredictableSeed);
     auto rv = SimplexVariable!double(3);
+    auto x = rv(gen);
+    assert(x.length == 3);
+    assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
+    assert(fabs(x[0] + x[1] + x[2] - 1) < 1e-10);
+}
+
+/++
+$(Dirichlet distribution).
++/
+struct DirichletVariable(T)
+    if (isFloatingPoint!T)
+{
+    ///
+    enum isRandomVariable = true;
+
+    private T[] buf;
+    private GammaVariable!T[] gamma;
+
+    /++ dimension of the simplex +/
+    size_t dim() const @property
+    {
+        return buf.length;
+    }
+
+    ///
+    this(const(T)[] alpha...)
+    {
+        assert(alpha.length >= 1);
+        gamma = new GammaVariable!T[alpha.length];
+        for(size_t i = 0; i < alpha.length; ++i)
+        {
+            assert(alpha[i] > 0);
+            gamma[i] = GammaVariable!T(alpha[i]);
+        }
+        buf = new T[alpha.length];
+    }
+
+    /++ result.length == dim +/
+    T[] opCall(G)(ref G gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        assert(buf.length >= 0, "uninitialized Dirichlet Variable");
+
+        T sum = 0;
+        for(size_t i = 0; i < buf.length; ++i)
+        {
+            buf[i] = gamma[i](gen);
+            sum += buf[i];
+        }
+        buf[] /= sum;
+        return buf;
+    }
+}
+
+///
+unittest
+{
+    auto gen = Random(unpredictableSeed);
+    auto rv = DirichletVariable!double(1.0, 5.7, 0.3);
     auto x = rv(gen);
     assert(x.length == 3);
     assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
