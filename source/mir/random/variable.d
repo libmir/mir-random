@@ -1654,6 +1654,11 @@ struct SphereVariable(T)
         buf = new T[dim];
     }
 
+    this(this)
+    {
+        buf = buf.dup;
+    }
+
     /++ result.length == dim +/
     T[] opCall(G)(ref G gen)
         if (isSaturatedRandomEngine!G)
@@ -1705,6 +1710,11 @@ struct SimplexVariable(T)
     {
         assert(dim >= 1);
         buf = new T[dim];
+    }
+
+    this(this)
+    {
+        buf = buf.dup;
     }
 
     /++ result.length == dim +/
@@ -1764,6 +1774,11 @@ struct DirichletVariable(T)
             gamma[i] = GammaVariable!T(alpha[i]);
         }
         buf = new T[alpha.length];
+    }
+
+    this(this)
+    {
+        buf = buf.dup;
     }
 
     /++ result.length == dim +/
