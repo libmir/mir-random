@@ -14,6 +14,7 @@ $(BOOKTABLE $(H2 Multidimensional Random Variables),
     $(RVAR Sphere, Uniform distribution on a unit-sphere)
     $(RVAR Simplex, Uniform distribution on a standard-simplex)
     $(RVAR Dirichlet, $(WIKI_D Dirichlet))
+    $(RVAR MultivariateNormal, $(WIKI_D Multivariate_normal))
 )
 
 Authors: Simon Bürger
@@ -29,11 +30,8 @@ Macros:
 module mir.random.ndvariable;
 
 import mir.random;
-import mir.random.variable;
 import std.traits;
-
 import mir.math.common;
-import mir.math.sum;
 import mir.ndslice;
 
 /++
@@ -43,25 +41,17 @@ Returns: `X ~ 1` with `X[0]^^2 + .. + X[$-1]^^2 = 1`
 struct SphereVariable(T)
     if (isFloatingPoint!T)
 {
+    import mir.random.variable : NormalVariable;
+    import mir.math.sum : sum;
+
     ///
     enum isRandomVariable = true;
 
-    private size_t dim;
     private NormalVariable!T norm;
-
-    /++
-    Params:
-        dim = dimension of the sphere
-    +/
-    this(size_t dim)
-    {
-        this.dim = dim;
-    }
 
     ///
     void opCall(G)(ref G gen, T[] result)
     {
-        assert(result.length == dim + 1);
         opCall(gen, result.sliced);
     }
 
@@ -69,8 +59,8 @@ struct SphereVariable(T)
     void opCall(G, SliceKind kind, Iterator)(ref G gen, Slice!(kind, [1], Iterator) result)
         if (isSaturatedRandomEngine!G)
     {
-        assert(result.length == dim + 1);
-        for(size_t i = 0; i <= dim; ++i)
+        assert(result.length);
+        for(size_t i = 0; i < result.length; ++i)
             result[i] = norm(gen);
         result[] /= result.map!"a*a".sum!"kbn".sqrt;
     }
@@ -80,38 +70,28 @@ struct SphereVariable(T)
 unittest
 {
     auto gen = Random(unpredictableSeed);
-    auto rv = SphereVariable!double(1); // dimension of circle is 1
-    double[2] x; // even though a point is described by 2 numbers
+    SphereVariable!double rv;
+    double[2] x;
     rv(gen, x);
     assert(fabs(x[0]*x[0] + x[1]*x[1] - 1) < 1e-10);
 }
 
 /++
-$(Uniform distribution on a sphere).
+$(Uniform distribution on a simplex).
 Returns: `X ~ 1` with `X[i] >= 0` and `X[0] + .. + X[$-1] = 1`
 +/
 struct SimplexVariable(T)
     if (isFloatingPoint!T)
 {
+    import mir.ndslice.sorting : sort;
+    import mir.math.sum : sum;
+
     ///
     enum isRandomVariable = true;
-
-    import mir.ndslice.sorting;
-    private size_t dim;
-
-    /++
-    Params:
-        dim = dimension of the simplex
-    +/
-    this(size_t dim)
-    {
-        this.dim = dim;
-    }
 
     ///
     void opCall(G)(ref G gen, T[] result)
     {
-        assert(result.length == dim + 1);
         opCall(gen, result.sliced);
     }
 
@@ -119,14 +99,14 @@ struct SimplexVariable(T)
     void opCall(G, SliceKind kind, Iterator)(ref G gen, Slice!(kind, [1], Iterator) result)
         if (isSaturatedRandomEngine!G)
     {
-        assert(result.length == dim + 1);
+        assert(result.length);
 
-        for(size_t i = 0; i < dim; ++i)
+        for(size_t i = 0; i < result.length; ++i)
             result[i] = gen.rand!T.fabs;
-        result[dim] = T(1);
+        result[$-1] = T(1);
 
         sort(result[]);
-        for(size_t i = dim; i > 0; --i)
+        for(size_t i = result.length-1; i > 0; --i)
             result[i] = result[i] - result[i-1];
     }
 }
@@ -135,7 +115,7 @@ struct SimplexVariable(T)
 unittest
 {
     auto gen = Random(unpredictableSeed);
-    auto rv = SimplexVariable!double(2);
+    SimplexVariable!double rv;
     double[3] x;
     rv(gen, x);
     assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
@@ -148,10 +128,12 @@ $(Dirichlet distribution).
 struct DirichletVariable(T, AlphaParams = const(T)[])
     if (isFloatingPoint!T)
 {
+    import mir.random.variable : GammaVariable;
+    import mir.math.sum : sum;
+
     ///
     enum isRandomVariable = true;
 
-    private size_t dim;
     private AlphaParams alpha;
 
     /++
@@ -165,14 +147,12 @@ struct DirichletVariable(T, AlphaParams = const(T)[])
         for(size_t i = 0; i < alpha.length; ++i)
             assert(alpha[i] > T(0));
 
-        this.dim = alpha.length - 1;
         this.alpha = alpha;
     }
 
     ///
     void opCall(G)(ref G gen, T[] result)
     {
-        assert(result.length == dim + 1);
         opCall(gen, result.sliced);
     }
 
@@ -180,7 +160,7 @@ struct DirichletVariable(T, AlphaParams = const(T)[])
     void opCall(G, SliceKind kind, Iterator)(ref G gen, Slice!(kind, [1], Iterator) result)
         if (isSaturatedRandomEngine!G)
     {
-        assert(result.length == dim + 1);
+        assert(result.length == alpha.length);
         for(size_t i = 0; i < result.length; ++i)
             result[i] = GammaVariable!T(alpha[i])(gen);
         result[] /= result.sum!"kbn";
@@ -225,14 +205,15 @@ private bool cholesky(SliceKind kind, Iterator)(Slice!(kind, [2], Iterator) m)
 /++
 $(Multivariate normal distribution).
 +/
-struct MultivariateNormalVariable(T, MuParams = T[], SigmaParams = ContiguousMatrix!T)
+struct MultivariateNormalVariable(T, MuParams = const(T)[], SigmaParams = ContiguousMatrix!T)
     if(isFloatingPoint!T)
 {
+    import mir.random.variable : NormalVariable;
+
     ///
     enum isRandomVariable = true;
 
-    private size_t dim;
-    private MuParams mu; // mean vector
+    private MuParams mu; // mean vector (can be null)
     private SigmaParams sigma; // cholesky decomposition of covariance matrix
     private NormalVariable!T norm;
 
@@ -255,7 +236,6 @@ struct MultivariateNormalVariable(T, MuParams = T[], SigmaParams = ContiguousMat
         if(!cholesky(sigma))
             assert(false, "covariance matrix not positive definite");
 
-        this.dim = mu.length;
         this.mu = mu;
         this.sigma = sigma;
         this.norm = NormalVariable!T(0, 1);
@@ -264,7 +244,6 @@ struct MultivariateNormalVariable(T, MuParams = T[], SigmaParams = ContiguousMat
     ///
     void opCall(G)(ref G gen, T[] result)
     {
-        assert(result.length == dim);
         opCall(gen, result.sliced);
     }
 
@@ -273,10 +252,10 @@ struct MultivariateNormalVariable(T, MuParams = T[], SigmaParams = ContiguousMat
         if (isSaturatedRandomEngine!G)
     {
         alias dot = reduce!"a + b * c";
-        assert(result.length == dim);
-        for(size_t i = 0; i < dim; ++i)
+        assert(result.length == sigma.length!0);
+        for(size_t i = 0; i < result.length; ++i)
             result[i] = norm(gen);
-        for(size_t i = dim; i > 0; --i)
+        for(size_t i = result.length; i > 0; --i)
             result[i-1] = dot(mu[i-1], sigma[i-1,0..i], result[0..i]);
     }
 }
