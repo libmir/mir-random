@@ -197,3 +197,97 @@ unittest
     assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
     assert(fabs(x[0] + x[1] + x[2] - 1) < 1e-10);
 }
+
+/++
+ Compute Cholesky decomposition in place. Only accesses lower/left half of
+ the matrix. Returns false if the matrix is not positive definite.
+ +/
+private bool cholesky(SliceKind kind, Iterator)(Slice!(kind, [2], Iterator) m)
+    if(isFloatingPoint!(DeepElementType!(typeof(m))))
+{
+    alias dotm = reduce!"a - b * c"; // note the `-`
+    assert(m.length!0 == m.length!1);
+
+    /* this is a straight-forward implementation of the Cholesky-Crout algorithm
+    from https://en.wikipedia.org/wiki/Cholesky_decomposition#Computation */
+    for(size_t i = 0; i < m.length!0; ++i)
+    {
+        for(size_t j = 0; j < i; ++j)
+            m[i,j] = dotm(m[i,j], m[i,0..j], m[j,0..j]) / m[j,j];
+        m[i,i] = dotm(m[i,i], m[i,0..i], m[i,0..i]);
+        if(!(m[i,i] > 0)) // this catches nan's as well
+            return false;
+        m[i,i] = sqrt(m[i,i]);
+    }
+    return true;
+}
+
+/++
+$(Multivariate normal distribution).
++/
+struct MultivariateNormalVariable(T, MuParams = T[], SigmaParams = ContiguousMatrix!T)
+    if(isFloatingPoint!T)
+{
+    ///
+    enum isRandomVariable = true;
+
+    private size_t dim;
+    private MuParams mu; // mean vector
+    private SigmaParams sigma; // cholesky decomposition of covariance matrix
+    private NormalVariable!T norm;
+
+    /++
+    Constructor computes the Cholesky decomposition of `sigma` in place without
+    memory allocation. Furthermore it is assumed to be a symmetric matrix, but
+    only the lower/left half is actually accessed.
+
+    Params:
+        mu = mean vector
+        sigma = covariance matrix
+
+    Constraints: sigma has to be positive-definite
+    +/
+    this(MuParams mu, SigmaParams sigma)
+    {
+        assert(mu.length == sigma.length!0);
+        assert(mu.length == sigma.length!1);
+
+        if(!cholesky(sigma))
+            assert(false, "covariance matrix not positive definite");
+
+        this.dim = mu.length;
+        this.mu = mu;
+        this.sigma = sigma;
+        this.norm = NormalVariable!T(0, 1);
+    }
+
+    ///
+    void opCall(G)(ref G gen, T[] result)
+    {
+        assert(result.length == dim);
+        opCall(gen, result.sliced);
+    }
+
+    ///
+    void opCall(G, SliceKind kind, Iterator)(ref G gen, Slice!(kind, [1], Iterator) result)
+        if (isSaturatedRandomEngine!G)
+    {
+        alias dot = reduce!"a + b * c";
+        assert(result.length == dim);
+        for(size_t i = 0; i < dim; ++i)
+            result[i] = norm(gen);
+        for(size_t i = dim; i > 0; --i)
+            result[i-1] = dot(mu[i-1], sigma[i-1,0..i], result[0..i]);
+    }
+}
+
+///
+unittest
+{
+    auto gen = Random(unpredictableSeed);
+    auto mu = [0.0, 0.0];
+    auto sigma = [2.0, -1.5, -1.5, 2.0].sliced(2,2);
+    auto rv = MultivariateNormalVariable!double(mu, sigma);
+    double[2] x;
+    rv(gen, x);
+}
