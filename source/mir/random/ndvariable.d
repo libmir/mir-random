@@ -213,7 +213,7 @@ struct MultivariateNormalVariable(T, MuParams = const(T)[], SigmaParams = Contig
     ///
     enum isRandomVariable = true;
 
-    private MuParams mu; // mean vector (can be null)
+    private MuParams mu; // mean vector (can be empty)
     private SigmaParams sigma; // cholesky decomposition of covariance matrix
     private NormalVariable!T norm;
 
@@ -223,20 +223,33 @@ struct MultivariateNormalVariable(T, MuParams = const(T)[], SigmaParams = Contig
     only the lower/left half is actually accessed.
 
     Params:
-        mu = mean vector
+        mu = mean vector (assumed zero if not supplied)
         sigma = covariance matrix
+        chol = optional flag indicating that sigma is already Cholesky decomposed
 
     Constraints: sigma has to be positive-definite
     +/
-    this(MuParams mu, SigmaParams sigma)
+    this(MuParams mu, SigmaParams sigma, bool chol = false)
     {
         assert(mu.length == sigma.length!0);
         assert(mu.length == sigma.length!1);
 
-        if(!cholesky(sigma))
+        if(!chol && !cholesky(sigma))
             assert(false, "covariance matrix not positive definite");
 
         this.mu = mu;
+        this.sigma = sigma;
+        this.norm = NormalVariable!T(0, 1);
+    }
+
+    /++ ditto +/
+    this(SigmaParams sigma, bool chol = false)
+    {
+        assert(sigma.length!0 == sigma.length!1);
+
+        if(!chol && !cholesky(sigma))
+            assert(false, "covariance matrix not positive definite");
+
         this.sigma = sigma;
         this.norm = NormalVariable!T(0, 1);
     }
@@ -255,8 +268,12 @@ struct MultivariateNormalVariable(T, MuParams = const(T)[], SigmaParams = Contig
         assert(result.length == sigma.length!0);
         for(size_t i = 0; i < result.length; ++i)
             result[i] = norm(gen);
-        for(size_t i = result.length; i > 0; --i)
-            result[i-1] = dot(mu[i-1], sigma[i-1,0..i], result[0..i]);
+        if(mu.length)
+            for(size_t i = result.length; i > 0; --i)
+                result[i-1] = dot(mu[i-1], sigma[i-1,0..i], result[0..i]);
+        else
+            for(size_t i = result.length; i > 0; --i)
+                result[i-1] = dot(T(0), sigma[i-1,0..i], result[0..i]);
     }
 }
 
