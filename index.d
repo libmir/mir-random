@@ -29,7 +29,7 @@ $(BOOKTABLE ,
     $(TR
         $(TDNW $(MREF mir,random,algorithm))
         $(TD
-            $(REF_ALTTEXT $(TT Random ranges), RandomRange, mir, random, algorithm).
+            $(REF_ALTTEXT $(TT Random ndslices and ranges), RandomRange, mir, random, algorithm).
         )
     )
     $(LEADINGROW Entropy Generators)
@@ -47,6 +47,10 @@ $(BOOKTABLE ,
     $(TR
         $(TDNW $(MREF mir,random,engine,mersenne_twister))
         $(TD $(HTTP en.wikipedia.org/wiki/Mersenne_Twister, Mersenne Twister)  generator.)
+    )
+    $(TR
+        $(TDNW $(MREF mir,random,engine,pcg))
+        $(TD $(HTTP www.pcg-random.org, Permuted Congruential)  generator.)
     )
     $(TR
         $(TDNW $(MREF mir,random,engine,xorshift))

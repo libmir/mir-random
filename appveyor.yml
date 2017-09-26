@@ -2,14 +2,18 @@ platform: x64
 environment:
  matrix:
   - DC: dmd
-    DVersion: 2.071.1
+    DVersion: 2.074.1
     arch: x64
   - DC: dmd
-    DVersion: 2.071.1
+    DVersion: 2.074.1
     arch: x86
   - DC: ldc
-    DVersion: '1.1.0-beta5'
+    DVersion: '1.3.0-beta1'
     arch: x64
+
+matrix:
+  allow_failures:
+    - {DC: dmd, arch: x86}
 
 skip_tags: true
 branches:
@@ -89,8 +93,6 @@ test_script:
  - echo %PATH%
  - '%DC% --version'
  - dub test --arch=%Darch% --compiler=%DC%
- - dub build --root=examples/flex_plot --arch %Darch%
- - dub build --root=examples/flex_plot/flex_common_pack --arch %Darch%
 
 notifications:
  - provider: Webhook

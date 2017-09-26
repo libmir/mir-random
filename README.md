@@ -45,11 +45,12 @@ void main(){
  - Does not depend on DRuntime (Better C concept)
 
 ##### `random` (new implementation and API)
- - Mir Random `rand!float`/`rand!double`/`rand!real` generates saturated real random numbers in `(-1, 1)`. For example, `rand!real` can produce more then 2^78 unique numbers. In other hand, `std.random.uniform01!real` produces less then `2^31` unique numbers with default Engine.
+ - Mir Random `rand!float`/`rand!double`/`rand!real` generates saturated real random numbers in `(-1, 1)`. For example, `rand!real` can produce more than 2^78 unique numbers. In other hand, `std.random.uniform01!real` produces less than `2^31` unique numbers with default Engine.
  - Mir Random fixes Phobos integer underflow bugs.
- - Addition optization was added for enumerated types.
+ - Addition optimization was added for enumerated types.
+ - Random ndslices generation.
 
-##### `ramdom.variable` (new)
+##### `random.variable` (new)
  - Uniform
  - Exponential
  - Gamma
@@ -58,15 +59,14 @@ void main(){
  - ...
 
 ##### `random.algorithm` (new)
- - Range API adaptors
+ - Ndslice and range API adaptors
 
 ##### `random.engine.*` (fixed, reworked)
  - `opCall` API instead of range interface is used (similar to C++)
  - No default and copy constructors are allowed for generators.
- - `@RandomEngine` UDA is used for for Engines instead of a enum flag.
  - `unpredictableSeed` has not state, returns `size_t`
  - Any unsigned generators are allowed.
- - `min` proporty was removed. Any integer generator can normalize its minimum down to zero.
+ - `min` property was removed. Any integer generator can normalize its minimum down to zero.
  - Mt19937: +100% performance for initialization.
  - Mt19937: +54% performance for generation.
  - Mt19937: fixed to be more CPU cache friendly.

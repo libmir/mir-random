@@ -2,16 +2,16 @@
 	"name": "mir-random",
 	"authors": [
 		"Ilya Yaroshenko",
+		"Sebastian Wilzbach",
 		"Andrei Alexandrescu",
-		"Masahiro Nakagawa"
+		"Masahiro Nakagawa",
+		"Nicholas Wilson"
 	],
 	"description": "Dlang Random Number Generators",
-	"copyright": "Copyright © 2016, Ilya Yaroshenko",
-	"license": "BSL-1.0",
+	"copyright": "Copyright © 2016-2017, Ilya Yaroshenko, see also copyright per file",
+	"license": "BSL-1.0 (default), Apache License, Version 2.0 for (for PCG)",
 	"dependencies": {
-		"mir-math": "~>0.0.1"
-	},
-	"libs-windows" : [
-		"advapi32"
-	]
+		"mir-algorithm": "~>0.6.0"
+	}
+ 	"libs-windows": ["advapi32"]
 }
