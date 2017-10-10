@@ -89,7 +89,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
         opCall();
     }
 
-    import std.range.primitives : isInfinite, isInputRange, isRandomAccessRange, ElementType;
+    import std.range.primitives : isForwardRange, isInfinite, isInputRange, isRandomAccessRange, ElementType;
 
     /++
     Constructs a MersenneTwisterEngine object.
@@ -101,7 +101,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
 
     /// ditto
     this(Range)(scope Range range)
-    if (isRandomAccessRange!Range || (isInputRange!Range && isInfinite!Range && !is(Range == const))
+    if ((isForwardRange!Range || (isInputRange!Range && isInfinite!Range && !is(Range == const)))
         && is(Unqual!(ElementType!Range) == UIntType))
     {
         initByRange(range);
@@ -130,28 +130,18 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
                 e &= max;
         }
         index = n-1;
-
-        size_t i = n - 2, j = 0;
-
-        static if (isInfinite!Range && !is(Range == const))
+        import std.range : empty;
+        if (range.empty)
         {
-            foreach_reverse(_; 0 .. n)
-            {
-                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
-                    + cast(UIntType)(range.front + j); /* non linear */
-                static if (max != UIntType.max)
-                    data[i] &= max;
-                if (--i > n)
-                {
-                    data[$ - 1] = data[0];
-                    i = n - 2;
-                }
-                range.popFront();
-                ++j;
-            }
+            opCall();
+            return;
         }
-        else
+
+        size_t i = n - 2;
+
+        static if (isRandomAccessRange!Range)
         {
+            size_t j = 0;
             static if (isInfinite!Range)
                 enum key_length = n;
             else
@@ -167,9 +157,62 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
                     data[$ - 1] = data[0];
                     i = n - 2;
                 }
-
-                if (++j >= key_length)
-                    j = 0;
+                ++j;
+                static if (!isInfinite!Range)
+                {
+                    if (j >= key_length)
+                        j = 0;
+                }
+            }
+        }
+        else
+        {
+            static if (!isInfinite!Range)
+            {
+                Range saved_ = range.save;
+                bool usedEntireRange = false;
+            }
+            UIntType j = 0;
+            foreach_reverse(_; 0 .. n)
+            {
+                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                    + cast(UIntType)(range.front + j); /* non linear */
+                static if (max != UIntType.max)
+                    data[i] &= max;
+                if (--i > n)
+                {
+                    data[$ - 1] = data[0];
+                    i = n - 2;
+                }
+                ++j;
+                range.popFront();
+                static if (!isInfinite!Range)
+                {
+                    if (range.empty)
+                    {
+                        range = saved_.save;
+                        j = 0;
+                        usedEntireRange = true;
+                    }
+                }
+            }
+            static if (!isInfinite!Range)
+            {
+                while (!usedEntireRange)
+                {
+                    data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                        + cast(UIntType)(range.front + j); /* non linear */
+                    static if (max != UIntType.max)
+                        data[i] &= max;
+                    if (--i > n)
+                    {
+                        data[$ - 1] = data[0];
+                        i = n - 2;
+                    }
+                    ++j;
+                    range.popFront();
+                    usedEntireRange = range.empty;
+                }
             }
         }
 
@@ -347,8 +390,47 @@ version(mir_random_test) unittest
         gen64();
     assert(994412663058993407uL == gen64());
 
+    //Verify that seeding works when using a forward range that doesn't
+    //support random access.
+    static struct S
+    {
+        @safe pure nothrow @nogc:
+        const(uint)[] s;
+        @property bool empty() const
+        {
+            return !length;
+        }
+        @property size_t length() const
+        {
+            return s.length;
+        }
+        alias opDollar = length;
+        @property auto front() const
+        {
+            return s[0];
+        }
+        void popFront()
+        {
+            assert(s.length);
+            s = s[1..$];
+        }
+        @property typeof(this) save()
+        {
+            return this;
+        }
+    }
+    S forward_seed32 = S(seed32);
+    gen32 = Mt19937(forward_seed32);
+    foreach(_; 0..999)
+        gen32();
+    assert(3460025646u == gen32());
+
+    //Verify that a zero-length array doesn't cause an infinite loop
+    //or a range violation.
+    gen32 = Mt19937(seed32[0..0]);
+
     //Verify that seeding with an infinite sequence does not cause an
     //infinite loop.
     import std.range : repeat;
-    auto gen = Mt19937(repeat(0u));
+    gen32 = Mt19937(repeat(0u));
 }
