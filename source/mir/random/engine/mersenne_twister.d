@@ -89,6 +89,106 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
         opCall();
     }
 
+    import std.range.primitives : isInfinite, isInputRange, isRandomAccessRange, ElementType;
+
+    /++
+    Constructs a MersenneTwisterEngine object.
+    +/
+    this()(scope const UIntType[] range) @safe pure nothrow @nogc
+    {
+        initByRange(range);
+    }
+
+    /// ditto
+    this(Range)(scope Range range)
+    if (isRandomAccessRange!Range || (isInputRange!Range && isInfinite!Range && !is(Range == const))
+        && is(Unqual!(ElementType!Range) == UIntType))
+    {
+        initByRange(range);
+    }
+
+    private void initByRange(Range)(scope Range range)
+    {
+        static if (is(UIntType == uint))
+        {
+            enum UIntType f2 = 1664525u;
+            enum UIntType f3 = 1566083941u;
+        }
+        else static if (is(UIntType == ulong))
+        {
+            enum UIntType f2 = 3935559000370003845uL;
+            enum UIntType f3 = 2862933555777941757uL;
+        }
+        else
+            static assert(0);
+
+        data[$-1] = cast(UIntType) (19650218u & max);
+        foreach_reverse (size_t i, ref e; data[0 .. $-1])
+        {
+            e = f * (data[i + 1] ^ (data[i + 1] >> (w - 2))) + cast(UIntType)(n - (i + 1));
+            static if (max != UIntType.max)
+                e &= max;
+        }
+        index = n-1;
+
+        size_t i = n - 2, j = 0;
+
+        static if (isInfinite!Range && !is(Range == const))
+        {
+            foreach_reverse(_; 0 .. n)
+            {
+                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                    + cast(UIntType)(range.front + j); /* non linear */
+                static if (max != UIntType.max)
+                    data[i] &= max;
+                if (--i > n)
+                {
+                    data[$ - 1] = data[0];
+                    i = n - 2;
+                }
+                range.popFront();
+                ++j;
+            }
+        }
+        else
+        {
+            static if (isInfinite!Range)
+                enum key_length = n;
+            else
+                const key_length = range.length;
+            foreach_reverse(_; 0 .. (n > key_length ? n : key_length))
+            {
+                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                    + cast(UIntType)(range[j] + j); /* non linear */
+                static if (max != UIntType.max)
+                    data[i] &= max;
+                if (--i > n)
+                {
+                    data[$ - 1] = data[0];
+                    i = n - 2;
+                }
+
+                if (++j >= key_length)
+                    j = 0;
+            }
+        }
+
+        foreach_reverse(_; 0 .. n-1)
+        {
+            data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f3))
+                - cast(UIntType)(n - (i + 1)); /* non linear */
+            static if (max != UIntType.max)
+                data[i] &= max;
+            if (--i > n)
+            {
+                data[$ - 1] = data[0];
+                i = n - 2;
+            }
+        }
+        data[$-1] = (cast(UIntType)1) << ((UIntType.sizeof * 8) - 1); /* MSB is 1; assuring non-zero initial array */
+        opCall();
+    }
+
     /++
     Advances the generator.
     +/
@@ -226,4 +326,29 @@ version(mir_random_test) unittest
             a();
         assert(val[i] == a());
     }
+}
+
+@safe nothrow @nogc version(mir_random_test) unittest
+{
+    //Verify that seeding with an array gives the same result as the reference
+    //implementation.
+
+    //32-bit: www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/MT2002/CODES/mt19937ar.tgz
+    immutable uint[4] seed32 = [0x123u, 0x234u, 0x345u, 0x456u];
+    auto gen32 = Mt19937(seed32);
+    foreach(_; 0..999)
+        gen32();
+    assert(3460025646u == gen32());
+
+    //64-bit: www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/mt19937-64.tgz
+    immutable ulong[4] seed64 = [0x12345uL, 0x23456uL, 0x34567uL, 0x45678uL];
+    auto gen64 = Mt19937_64(seed64);
+    foreach(_; 0..999)
+        gen64();
+    assert(994412663058993407uL == gen64());
+
+    //Verify that seeding with an infinite sequence does not cause an
+    //infinite loop.
+    import std.range : repeat;
+    auto gen = Mt19937(repeat(0u));
 }
