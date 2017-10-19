@@ -8,6 +8,22 @@ Authors: $(HTTP erdani.org, Andrei Alexandrescu) Ilya Yaroshenko (rework)
 module mir.random.engine.mersenne_twister;
 
 import std.traits;
+import mir.ndslice.slice : Slice, SliceKind, Contiguous;
+import std.range.primitives : isInputRange, ElementType;
+
+/*
+For betterC define our own private pureMalloc, etc.
+to avoid depending on druntime core.memory.
+*/
+extern (C) private @nogc nothrow pure
+{
+    //We can consider this malloc to effectively be pure
+    //because it is private and we immediately abort the
+    //program if it fails.
+    pragma(mangle, "malloc") void* pureMalloc(size_t) @trusted;
+    pragma(mangle, "realloc") void* pureRealloc(void* ptr, size_t size); @system
+    pragma(mangle, "free") void* pureFree(void* ptr) @system;
+}
 
 /++
 The $(LUCKY Mersenne Twister) generator.
@@ -89,25 +105,13 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
         opCall();
     }
 
-    import std.range.primitives : isForwardRange, isInfinite, isInputRange, isRandomAccessRange, ElementType;
-
     /++
     Constructs a MersenneTwisterEngine object.
+
+    Note that  `MersenneTwisterEngine([123])` will not result in
+    the same initial state as `MersenneTwisterEngine(123)`.
     +/
-    this()(scope const UIntType[] range) @safe pure nothrow @nogc
-    {
-        initByRange(range);
-    }
-
-    /// ditto
-    this(Range)(scope Range range)
-    if ((isForwardRange!Range || (isInputRange!Range && isInfinite!Range && !is(Range == const)))
-        && is(Unqual!(ElementType!Range) == UIntType))
-    {
-        initByRange(range);
-    }
-
-    private void initByRange(Range)(scope Range range)
+    this(scope Slice!(Contiguous, [1], const(UIntType)*) slice) @safe pure nothrow @nogc
     {
         static if (is(UIntType == uint))
         {
@@ -120,7 +124,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             enum UIntType f3 = 2862933555777941757uL;
         }
         else
-            static assert(0);
+            static assert(0, "init by slice only supported if UIntType is uint or ulong!");
 
         data[$-1] = cast(UIntType) (19650218u & max);
         foreach_reverse (size_t i, ref e; data[0 .. $-1])
@@ -130,90 +134,30 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
                 e &= max;
         }
         index = n-1;
-        import std.range : empty;
-        if (range.empty)
+        if (slice.length == 0)
         {
             opCall();
             return;
         }
 
         size_t i = n - 2;
-
-        static if (isRandomAccessRange!Range)
+        size_t j = 0;
+        immutable key_length = slice.length;
+        const(UIntType)[] field = slice.field;
+        foreach_reverse(_; 0 .. (n > key_length ? n : key_length))
         {
-            size_t j = 0;
-            static if (isInfinite!Range)
-                enum key_length = n;
-            else
-                const key_length = range.length;
-            foreach_reverse(_; 0 .. (n > key_length ? n : key_length))
+            data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                + cast(UIntType)(field[j] + j); /* non linear */
+            static if (max != UIntType.max)
+                data[i] &= max;
+            if (--i > n)
             {
-                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
-                    + cast(UIntType)(range[j] + j); /* non linear */
-                static if (max != UIntType.max)
-                    data[i] &= max;
-                if (--i > n)
-                {
-                    data[$ - 1] = data[0];
-                    i = n - 2;
-                }
-                ++j;
-                static if (!isInfinite!Range)
-                {
-                    if (j >= key_length)
-                        j = 0;
-                }
+                data[$ - 1] = data[0];
+                i = n - 2;
             }
-        }
-        else
-        {
-            static if (!isInfinite!Range)
-            {
-                Range saved_ = range.save;
-                bool usedEntireRange = false;
-            }
-            UIntType j = 0;
-            foreach_reverse(_; 0 .. n)
-            {
-                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
-                    + cast(UIntType)(range.front + j); /* non linear */
-                static if (max != UIntType.max)
-                    data[i] &= max;
-                if (--i > n)
-                {
-                    data[$ - 1] = data[0];
-                    i = n - 2;
-                }
-                ++j;
-                range.popFront();
-                static if (!isInfinite!Range)
-                {
-                    if (range.empty)
-                    {
-                        range = saved_.save;
-                        j = 0;
-                        usedEntireRange = true;
-                    }
-                }
-            }
-            static if (!isInfinite!Range)
-            {
-                while (!usedEntireRange)
-                {
-                    data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
-                        + cast(UIntType)(range.front + j); /* non linear */
-                    static if (max != UIntType.max)
-                        data[i] &= max;
-                    if (--i > n)
-                    {
-                        data[$ - 1] = data[0];
-                        i = n - 2;
-                    }
-                    ++j;
-                    range.popFront();
-                    usedEntireRange = range.empty;
-                }
-            }
+            ++j;
+            if (j >= key_length)
+                j = 0;
         }
 
         foreach_reverse(_; 0 .. n-1)
@@ -230,6 +174,127 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
         }
         data[$-1] = (cast(UIntType)1) << ((UIntType.sizeof * 8) - 1); /* MSB is 1; assuring non-zero initial array */
         opCall();
+    }
+
+    /// ditto
+    this()(scope const(UIntType)[] array) @safe pure nothrow @nogc
+    {
+        import mir.ndslice.slice: sliced;
+        this(array.sliced);
+    }
+
+    /++
+    Constructs a MersenneTwisterEngine object.
+
+    This method copies the values from the range into a temporary buffer.
+    If you can pass an array or slice directly that is more efficient.
+
+    A range that is detected as infinite by `std.range.primitives.isInfinite`
+    will be treated as though its length were `n`.
+    +/
+    this(Range)(scope Range range)
+    if (isInputRange!Range && is(Unqual!(ElementType!Range) == UIntType))
+    {
+        import mir.ndslice.slice: sliced;
+        import std.range.primitives : hasLength, isInfinite;
+
+        static if (isInfinite!Range)
+        {
+            //Treat infinite range as having length `n`.
+            UIntType[n] buffer = void;
+            foreach (ref e; buffer)
+            {
+                e = range.front;
+                range.popFront();
+            }
+            this(buffer.sliced);
+        }
+        else static if (hasLength!Range)
+        {
+            //Use malloc for a temporary buffer. Length is known.
+            immutable length = range.length;
+            if (length > size_t.max / UIntType.sizeof)
+                assert(0, "MersenneTwister: input range too large to be converted to array!");
+            void* raw_buffer = pureMalloc(length * UIntType.sizeof);
+            if (raw_buffer is null)
+                assert(0, "MersenneTwister: malloc failed!");
+            UIntType[] buffer = (() @trusted => (cast(UIntType*) raw_buffer)[0 .. length])();
+            version (D_betterC)
+            {
+                enum bool mustManuallyFreeBuffer = true;
+            }
+            else
+            {
+                enum bool mustManuallyFreeBuffer = false;
+                scope(exit) (() @trusted => pureFree(raw_buffer))();
+            }
+            foreach (ref e; buffer)
+            {
+                e = range.front;
+                range.popFront();
+            }
+            this(buffer.sliced);
+            static if (mustManuallyFreeBuffer)
+                (() @trusted => pureFree(raw_buffer))();
+        }
+        else
+        {
+            //Use malloc for a temporary buffer. Length is unknown.
+            size_t count = 0;
+            size_t capacity = 16;
+            UIntType* raw_memory = (() @trusted => cast(UIntType*) pureMalloc(capacity * UIntType.sizeof))();
+            if (raw_memory is null)
+                assert(0, "MersenneTwister: malloc failed!");
+            version (D_betterC)
+            {
+                enum bool mustManuallyFreeBuffer = true;
+            }
+            else
+            {
+                enum bool mustManuallyFreeBuffer = false;
+                scope(exit) (() @trusted => pureFree(raw_memory))();
+            }
+            while (!range.empty)
+            {
+                if (count == capacity)
+                {
+                    size_t new_capacity = capacity * 2;
+                    enum size_t max_valid_capacity = size_t.max / UIntType.sizeof;
+                    static if (size_t.max > max_valid_capacity)
+                    {
+                        if (new_capacity > max_valid_capacity)
+                        {
+                            if (capacity == max_valid_capacity)
+                                assert(0, "MersenneTwister: input range too large to be converted to array!");
+                            else
+                                new_capacity = max_valid_capacity;
+                        }
+                    }
+                    else
+                    {
+                        if (new_capacity < capacity)
+                        {
+                            if (capacity == max_valid_capacity)
+                                assert(0, "MersenneTwister: input range too large to be converted to array!");
+                            else
+                                new_capacity = max_valid_capacity;
+                        }
+                    }
+                    UIntType* new_memory = (() @trusted => cast(UIntType*) pureRealloc(raw_memory, new_capacity * UIntType.sizeof))();
+                    if (new_memory is null)
+                        assert(0, "MersenneTwister: malloc failed!");
+                    raw_memory = new_memory;
+                    capacity = new_capacity;
+                }
+                (() @trusted => raw_memory[count] = range.front)();
+                ++count;
+                range.popFront();
+            }
+            UIntType[] buffer = (() @trusted => raw_memory[0 .. count])();
+            this(buffer.sliced);
+            static if (mustManuallyFreeBuffer)
+                (() @trusted => pureFree(raw_memory))();
+        }
     }
 
     /++
@@ -390,21 +455,17 @@ version(mir_random_test) unittest
         gen64();
     assert(994412663058993407uL == gen64());
 
-    //Verify that seeding works when using a forward range that doesn't
-    //support random access.
-    static struct S
+    import std.range.primitives : hasLength, isForwardRange, isRandomAccessRange;
+    //Verify that seeding works when using a non-random-access
+    //forward range.
+    static struct S1
     {
         @safe pure nothrow @nogc:
         const(uint)[] s;
         @property bool empty() const
         {
-            return !length;
+            return !s.length;
         }
-        @property size_t length() const
-        {
-            return s.length;
-        }
-        alias opDollar = length;
         @property auto front() const
         {
             return s[0];
@@ -419,8 +480,63 @@ version(mir_random_test) unittest
             return this;
         }
     }
-    S forward_seed32 = S(seed32);
-    gen32 = Mt19937(forward_seed32);
+    static assert(isForwardRange!S1 && !isRandomAccessRange!S1);
+    gen32 = Mt19937(S1(seed32));
+    foreach(_; 0..999)
+        gen32();
+    assert(3460025646u == gen32());
+
+    //Verify that seeding works when using a non-forward
+    //input range with known length.
+    static struct S2
+    {
+        @safe pure nothrow @nogc:
+        const(uint)[] s;
+        @property bool empty() const
+        {
+            return !length;
+        }
+        @property auto front() const
+        {
+            return s[0];
+        }
+        void popFront()
+        {
+            s = s[1..$];
+        }
+        @property size_t length() const
+        {
+            return s.length;
+        }
+        alias opDollar = length;
+    }
+    static assert(!isForwardRange!S2 && hasLength!S2);
+    gen32 = Mt19937(S2(seed32));
+    foreach(_; 0..999)
+        gen32();
+    assert(3460025646u == gen32());
+
+    //Verify that seeding works when using a non-forward
+    //input range with unknown length.
+    static struct S3
+    {
+        @safe pure nothrow @nogc:
+        const(uint)[] s;
+        @property bool empty() const
+        {
+            return !s.length;
+        }
+        @property auto front() const
+        {
+            return s[0];
+        }
+        void popFront()
+        {
+            s = s[1..$];
+        }
+    }
+    static assert(!isForwardRange!S3 && !hasLength!S3);
+    gen32 = Mt19937(S3(seed32));
     foreach(_; 0..999)
         gen32();
     assert(3460025646u == gen32());
