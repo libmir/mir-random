@@ -12,18 +12,24 @@ import mir.ndslice.slice : Slice, SliceKind, Contiguous;
 import std.range.primitives : isInputRange, ElementType;
 
 /*
-For betterC define our own private pureMalloc, etc.
-to avoid depending on druntime core.memory.
-*/
+ Can't use pureMalloc from core.memory because no druntime in betterC.
+ Can't do the following because it doesn't build with LDC:
+
 extern (C) private @nogc nothrow pure
 {
     //We can consider this malloc to effectively be pure
     //because it is private and we immediately abort the
     //program if it fails.
-    pragma(mangle, "malloc") void* pureMalloc(size_t) @trusted;
-    pragma(mangle, "realloc") void* pureRealloc(void* ptr, size_t size); @system
-    pragma(mangle, "free") void* pureFree(void* ptr) @system;
+    pragma(mangle, "malloc") void* mtPureMalloc(size_t) @trusted;
+    pragma(mangle, "realloc") void* mtPureRealloc(void* ptr, size_t size); @system
+    pragma(mangle, "free") void* mtPureFree(void* ptr) @system;
 }
+
+ So we have to use impure malloc/free. We have to do this with both
+ DMD and LDC, because otherwise if a user called certain methods from
+ `pure` code his own program would fail to build with LDC.
+*/
+private import core.stdc.stdlib : free, malloc, realloc;
 
 /++
 The $(LUCKY Mersenne Twister) generator.
@@ -215,7 +221,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             immutable length = range.length;
             if (length > size_t.max / UIntType.sizeof)
                 assert(0, "MersenneTwister: input range too large to be converted to array!");
-            void* raw_buffer = pureMalloc(length * UIntType.sizeof);
+            void* raw_buffer = (() @trusted => malloc(length * UIntType.sizeof))();
             if (raw_buffer is null)
                 assert(0, "MersenneTwister: malloc failed!");
             UIntType[] buffer = (() @trusted => (cast(UIntType*) raw_buffer)[0 .. length])();
@@ -226,7 +232,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             else
             {
                 enum bool mustManuallyFreeBuffer = false;
-                scope(exit) (() @trusted => pureFree(raw_buffer))();
+                scope(exit) (() @trusted => free(raw_buffer))();
             }
             foreach (ref e; buffer)
             {
@@ -235,14 +241,14 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             }
             this(buffer.sliced);
             static if (mustManuallyFreeBuffer)
-                (() @trusted => pureFree(raw_buffer))();
+                (() @trusted => free(raw_buffer))();
         }
         else
         {
             //Use malloc for a temporary buffer. Length is unknown.
             size_t count = 0;
             size_t capacity = 16;
-            UIntType* raw_memory = (() @trusted => cast(UIntType*) pureMalloc(capacity * UIntType.sizeof))();
+            UIntType* raw_memory = (() @trusted => cast(UIntType*) malloc(capacity * UIntType.sizeof))();
             if (raw_memory is null)
                 assert(0, "MersenneTwister: malloc failed!");
             version (D_betterC)
@@ -252,7 +258,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             else
             {
                 enum bool mustManuallyFreeBuffer = false;
-                scope(exit) (() @trusted => pureFree(raw_memory))();
+                scope(exit) (() @trusted => free(raw_memory))();
             }
             while (!range.empty)
             {
@@ -280,7 +286,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
                                 new_capacity = max_valid_capacity;
                         }
                     }
-                    UIntType* new_memory = (() @trusted => cast(UIntType*) pureRealloc(raw_memory, new_capacity * UIntType.sizeof))();
+                    UIntType* new_memory = (() @trusted => cast(UIntType*) realloc(raw_memory, new_capacity * UIntType.sizeof))();
                     if (new_memory is null)
                         assert(0, "MersenneTwister: malloc failed!");
                     raw_memory = new_memory;
@@ -293,7 +299,7 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             UIntType[] buffer = (() @trusted => raw_memory[0 .. count])();
             this(buffer.sliced);
             static if (mustManuallyFreeBuffer)
-                (() @trusted => pureFree(raw_memory))();
+                (() @trusted => free(raw_memory))();
         }
     }
 
