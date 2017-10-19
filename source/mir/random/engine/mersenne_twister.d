@@ -146,37 +146,87 @@ struct MersenneTwisterEngine(UIntType, size_t w, size_t n, size_t m, size_t r,
             return;
         }
 
-        size_t i = n - 2;
-        size_t j = 0;
-        immutable key_length = slice.length;
-        const(UIntType)[] field = slice.field;
-        foreach_reverse(_; 0 .. (n > key_length ? n : key_length))
+        size_t final_mix_index = void;
+
+        if (slice.length >= n)
         {
+            size_t j = 0;
+            //Handle all but tail.
+            while (slice.length - j >= n - 1)
+            {
+                foreach_reverse (i, ref e; data[0 .. $-1])
+                {
+                    e = (e ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                        + slice[j] + cast(UIntType) j;
+                    static if (max != UIntType.max)
+                        e &= max;
+                    ++j;
+                }
+                data[$ - 1] = data[0];
+            }
+            //Handle tail.
+            size_t i = n - 2;
+            while (j < slice.length)
+            {
+                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                    + slice[j] + cast(UIntType) j;
+                static if (max != UIntType.max)
+                    data[i] &= max;
+                ++j;
+                --i;
+            }
+            //Set the index for use by the next pass.
+            final_mix_index = i;
+        }
+        else
+        {
+            size_t i = n - 2;
+            //Handle all but tail.
+            while (i >= slice.length)
+            {
+                foreach (j; 0 .. slice.length)
+                {
+                    data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                        + slice[j] + cast(UIntType) j;
+                    static if (max != UIntType.max)
+                        data[i] &= max;
+                    --i;
+                }
+            }
+            //Handle tail.
+            size_t j = 0;
+            while (i != cast(size_t) -1)
+            {
+                data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
+                    + slice[j] + cast(UIntType) j;
+                static if (max != UIntType.max)
+                    data[i] &= max;
+                ++j;
+                --i;
+            }
+            data[$ - 1] = data[0];
+            i = n - 2;
             data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f2))
-                + cast(UIntType)(field[j] + j); /* non linear */
+                + slice[j] + cast(UIntType) j;
             static if (max != UIntType.max)
                 data[i] &= max;
-            if (--i > n)
-            {
-                data[$ - 1] = data[0];
-                i = n - 2;
-            }
-            ++j;
-            if (j >= key_length)
-                j = 0;
+            //Set the index for use by the next pass.
+            final_mix_index = n - 2;
         }
 
-        foreach_reverse(_; 0 .. n-1)
+        foreach_reverse (i, ref e; data[0 .. final_mix_index])
         {
-            data[i] = (data[i] ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f3))
-                - cast(UIntType)(n - (i + 1)); /* non linear */
+            e = (e ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f3))
+                - cast(UIntType)(n - (i + 1));
             static if (max != UIntType.max)
-                data[i] &= max;
-            if (--i > n)
-            {
-                data[$ - 1] = data[0];
-                i = n - 2;
-            }
+                e &= max;
+        }
+        foreach_reverse (i, ref e; data[final_mix_index .. n-1])
+        {
+            e = (e ^ ((data[i+1] ^ (data[i+1] >> (w - 2))) * f3))
+                - cast(UIntType)(n - (i + 1));
+            static if (max != UIntType.max)
+                e &= max;
         }
         data[$-1] = (cast(UIntType)1) << ((UIntType.sizeof * 8) - 1); /* MSB is 1; assuring non-zero initial array */
         opCall();
