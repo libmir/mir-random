@@ -34,6 +34,14 @@ The parameters of this distribution. The random number is $(D_PARAM x
     static assert(m == 0 || c < m);
     static assert(m == 0 || (cast(ulong)a * (m-1) + c) % m == (c < a ? c - a + m : c - a));
 
+    /++
+    The low bits of a linear congruential generator whose modulus is a
+    power of 2 have a much shorter period than the high bits.
+    Note that for LinearCongruentialEngine, $(D modulus == 0) signifies
+    a modulus of $(D 2 ^^ Uint.sizeof) which is not representable as $(D Uint).
+    +/
+    enum bool preferHighBits = 0 == (modulus & (modulus - 1));
+
     @disable this();
     @disable this(this);
 

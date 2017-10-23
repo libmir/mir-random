@@ -47,6 +47,28 @@ else
 }
 
 /++
+Are the high bits of the engine's output known to have
+better statistical properties than the low bits of the
+output?
+
+True for:
+* linear congruential generators with power-of-2 modulus
+* xorshift+ family
+* xorshift* family
+* in principle any generator whose final operation is something like
+multiplication or addition in which the high bits depend on the low bits
+but the low bits are unaffected by the high bits.
++/
+//If we make this public instead of private it should probably go in mir.random.engine.package.
+private template preferHighBits(G)
+{
+    static if (__traits(compiles, { enum bool e = G.preferHighBits; }))
+        private enum bool preferHighBits = G.preferHighBits;
+    else
+        private enum bool preferHighBits = false;
+}
+
+/++
 Params:
     gen = saturated random number generator
 Returns:
@@ -63,6 +85,11 @@ T rand(T, G)(ref G gen)
         foreach(p; 0..P)
             (cast(R*)(&ret))[p] = gen();
         return ret;
+    }
+    else static if (preferHighBits!G)
+    {
+        version(LDC) pragma(inline, true);
+        return cast(T) (gen() >>> ((R.sizeof - T.sizeof) * 8));
     }
     else
     {
@@ -89,7 +116,8 @@ Returns:
 bool rand(T : bool, G)(ref G gen)
     if (isSaturatedRandomEngine!G)
 {
-    return gen() & 1;
+    import std.traits : Signed;
+    return 0 > cast(Signed!(EngineReturnType!G)) gen();
 }
 
 ///
