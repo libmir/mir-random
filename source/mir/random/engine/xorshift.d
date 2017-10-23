@@ -388,3 +388,91 @@ alias Xorshift1024StarPhi = XorshiftStarEngine!(ulong,1024,31,11,30,0x9e3779b97f
     assert(n != rnd());
     static assert(is(typeof(n) == uint));
 }
+
+/++
+$(LINK2 xoroshiro.di.unimi.it, xoroshiro128+) generator.
+
+Created in 2016 by David Blackman and Sebastiano Vigna as the successor
+to Vigna's extremely popular $(HTTP vigna.di.unimi.it/ftp/papers/xorshiftplus.pdf,
+xorshift128+) generator used in the JavaScript engines of
+$(HTTP v8project.blogspot.com/2015/12/theres-mathrandom-and-then-theres.html,
+Google Chrome), $(LINK2 https://bugzilla.mozilla.org/show_bug.cgi?id=322529#c99,
+Mozilla Firefox), $(LINK2 https://bugs.webkit.org/show_bug.cgi?id=151641, Safari),
+and $(LINK2 https://github.com/Microsoft/ChakraCore/commit/dbda0182dc0a983dfb37d90c05000e79b6fc75b0,
+Microsoft Edge).
+
+<blockquote="http://xoroshiro.di.unimi.it/xoroshiro128plus.c">
+This is the successor to xorshift128+. It is the fastest full-period
+generator passing BigCrush without systematic failures, but due to the
+relatively short period it is acceptable only for applications with a
+mild amount of parallelism; otherwise, use a xorshift1024* generator.
+
+Beside passing BigCrush, this generator passes the PractRand test suite
+up to (and included) 16TB, with the exception of binary rank tests, as
+the lowest bit of this generator is an LSFR. The next bit is not an
+LFSR, but in the long run it will fail binary rank tests, too. The
+other bits have no LFSR artifacts.
+
+We suggest to use a sign test to extract a random Boolean value, and
+right shifts to extract subsets of bits.
+</blockquote>
+
+64 bit output. 128 bits of state. Period of $(D (2 ^^ 128) - 1).
++/
+struct Xoroshiro128Plus
+{
+    ///
+    enum isRandomEngine = true;
+    /// Largest generated value.
+    enum ulong max = ulong.max;
+
+    /++
+    State must not be entirely zero.
+    The constructor ensures this condition is met.
+    +/
+    ulong[2] s = void;
+
+    @disable this();
+    @disable this(this);
+
+    /// Constructs an $(D Xoroshiro128Plus) generator seeded with $(D_PARAM x0).
+    this()(ulong x0) @nogc nothrow pure @safe
+    {
+        //Seed using splitmix64 as recommended by Vigna.
+        //http://xoroshiro.di.unimi.it/splitmix64.c
+        foreach (ref e; s)
+        {
+            ulong z = (x0 += 0x9e3779b97f4a7c15uL);
+            z = (z ^ (z >>> 30)) * 0xbf58476d1ce4e5b9uL;
+            z = (z ^ (z >>> 27)) * 0x94d049bb133111ebuL;
+            e = z ^ (z >>> 31);
+        }
+    }
+
+    /// Advances the random sequence.
+    ulong opCall()() @nogc nothrow pure @safe
+    {
+        //Public domain implementation:
+        //http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+        import core.bitop : rol;
+        immutable s0 = s[0];
+        auto s1 = s[1];
+        immutable result = s0 + s1;
+
+        s1 ^= s0;
+        s[0] = rol!(55,ulong)(s0) ^ s1 ^ (s1 << 14); // a, b
+        s[1] = rol!(36,ulong)(s1); // c
+
+        return result;
+    }
+}
+
+///
+@nogc nothrow pure @safe version(mir_random_test) unittest
+{
+    import mir.random.engine : isSaturatedRandomEngine;
+    static assert(isSaturatedRandomEngine!Xoroshiro128Plus);
+    auto gen = Xoroshiro128Plus(1234u);//Seed with constant.
+    auto n = gen();//Generate number.
+    assert(n != gen());
+}
