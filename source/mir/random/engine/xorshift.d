@@ -465,6 +465,33 @@ struct Xoroshiro128Plus
 
         return result;
     }
+
+    /++
+    This is the jump function for the generator. It is equivalent
+    to 2^^64 calls to $(D opCall()); it can be used to generate 2^64
+    non-overlapping subsequences for parallel computations.
+    +/
+    void jump()() @nogc nothrow pure @safe
+    {
+        static immutable ulong[2] JUMP = [ 0xbeac0467eba5facbUL, 0xd86b048b86aa9922UL ];
+
+        ulong s0 = 0;
+        ulong s1 = 0;
+        foreach (jump; JUMP)
+        {
+            foreach (b; 0 .. 64)
+            {
+                if (jump & (1uL << b))
+                {
+                    s0 ^= s[0];
+                    s1 ^= s[1];
+                }
+                opCall();
+            }
+        }
+        s[0] = s0;
+        s[1] = s1;
+    }
 }
 
 ///
@@ -477,4 +504,8 @@ struct Xoroshiro128Plus
     foreach (i; 0 .. 8)
         gen();
     assert(gen() == 8335647863237943914uL);
+    //Xoroshiro128Plus has a jump function that is equivalent
+    //to 2 ^^ 64 invocations of opCall.
+    gen.jump();
+    auto n = gen();
 }
