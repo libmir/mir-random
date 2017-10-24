@@ -61,6 +61,7 @@ but the low bits are unaffected by the high bits.
 +/
 //If we make this public instead of private it should probably go in mir.random.engine.package.
 private template preferHighBits(G)
+    if (isSaturatedRandomEngine!G)
 {
     static if (__traits(compiles, { enum bool e = G.preferHighBits; }))
         private enum bool preferHighBits = G.preferHighBits;
