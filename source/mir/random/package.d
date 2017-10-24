@@ -64,7 +64,7 @@ T rand(T, G)(ref G gen)
             (cast(R*)(&ret))[p] = gen();
         return ret;
     }
-    else static if (preferHighBits!G)
+    else static if (preferHighBits!G && P == 0)
     {
         version(LDC) pragma(inline, true);
         return cast(T) (gen() >>> ((R.sizeof - T.sizeof) * 8));
