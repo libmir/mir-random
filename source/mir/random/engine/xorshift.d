@@ -450,7 +450,7 @@ struct Xoroshiro128Plus
     }
 
     /// Advances the random sequence.
-    ulong opCall()() @nogc nothrow pure @safe
+    ulong opCall()()
     {
         //Public domain implementation:
         //http://xoroshiro.di.unimi.it/xoroshiro128plus.c
@@ -473,6 +473,8 @@ struct Xoroshiro128Plus
     import mir.random.engine : isSaturatedRandomEngine;
     static assert(isSaturatedRandomEngine!Xoroshiro128Plus);
     auto gen = Xoroshiro128Plus(1234u);//Seed with constant.
-    auto n = gen();//Generate number.
-    assert(n != gen());
+    assert(gen() == 5968561782418604543);//Generate number.
+    foreach (i; 0 .. 8)
+        gen();
+    assert(gen() == 8335647863237943914uL);
 }
