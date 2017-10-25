@@ -59,10 +59,22 @@ T rand(T, G)(ref G gen)
     enum P = T.sizeof / R.sizeof;
     static if (P > 1)
     {
-        T ret = void;
-        foreach(p; 0..P)
-            (cast(R*)(&ret))[p] = gen();
-        return ret;
+        static if (is(typeof((ref G g) @safe => g())))
+        {
+            return () @trusted {
+            T ret = void;
+            foreach(p; 0..P)
+                (cast(R*)(&ret))[p] = gen();
+            return ret;
+                }();
+        }
+        else
+        {
+            T ret = void;
+            foreach(p; 0..P)
+                (cast(R*)(&ret))[p] = gen();
+            return ret;
+        }
     }
     else static if (preferHighBits!G && P == 0)
     {
@@ -368,6 +380,23 @@ T randIndex(T, G)(ref G gen, T m)
     auto gen = Xorshift(1);
     auto s = gen.randIndex!uint(100);
     auto n = gen.randIndex!ulong(-100);
+}
+
+@nogc nothrow pure @safe version(mir_random_test) unittest
+{
+    //Test randIndex!uint from generator with return type ulong.
+    import mir.random.engine.xorshift;
+    auto gen = Xoroshiro128Plus(1);
+    static assert(is(EngineReturnType!(typeof(gen)) == ulong));
+    uint s = gen.randIndex!uint(100);
+
+    //Test CTFE of randIndex!uint from generator with return type ulong. 
+    uint e = () {
+            auto g = Xoroshiro128Plus(1);
+            return g.randIndex!uint(100);
+        }();
+
+    assert(s == e);
 }
 
 /++
