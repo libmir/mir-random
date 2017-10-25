@@ -317,16 +317,46 @@ Returns:
 T randIndex(T, G)(ref G gen, T m)
     if(isSaturatedRandomEngine!G && isUnsigned!T)
 {
-    assert(m, "m must be positive");
-    T ret = void;
-    T val = void;
-    do
+    alias R = EngineReturnType!G;
+    version (D_X32)
+        enum bool versionD_X32 = true;//On 64-bit machine but using 32-bit pointers.
+    else
+        enum bool versionD_X32 = false;
+    static if (R.sizeof >= T.sizeof * 2 && (size_t.sizeof >= R.sizeof || versionD_X32))
     {
-        val = gen.rand!T;
-        ret = val % m;
+        //Use Daniel Lemire's fast alternative to modulo reduction:
+        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+        enum rshift = (R.sizeof - T.sizeof) * 8;
+        auto randombits = gen() >>> rshift;
+        auto multiresult = randombits * m;
+        auto leftover = cast(T) multiresult;
+        if (leftover < m)
+        {
+            immutable threshold = -m % m ;
+            while (leftover < threshold)
+            {
+                randombits =  gen() >>> rshift;
+                multiresult = randombits * m;
+                leftover = cast(T) multiresult;
+            }
+        }
+        enum finalshift = T.sizeof * 8;//Not necessarily same as rshift. Maybe R.sizeof > T.sizeof * 2.
+        return cast(T) (multiresult >>> finalshift);
     }
-    while (val - ret > -m);
-    return ret;
+    else
+    {
+        //Default algorithm.
+        assert(m, "m must be positive");
+        T ret = void;
+        T val = void;
+        do
+        {
+            val = gen.rand!T;
+            ret = val % m;
+        }
+        while (val - ret > -m);
+        return ret;
+    }
 }
 
 ///

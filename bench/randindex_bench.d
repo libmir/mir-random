@@ -104,7 +104,8 @@ T randIndexV2(T, G)(ref G gen, T m)
             leftover = cast(T) multiresult;
         }
     }
-    return cast(T) (multiresult >>> rshift);
+    enum finalshift = T.sizeof * 8;//Not necessarily same as rshift. Maybe R.sizeof > T.sizeof * 2.
+    return cast(T) (multiresult >>> finalshift);
 }
 
 void main(string[] args)
