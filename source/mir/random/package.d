@@ -28,6 +28,8 @@ import std.traits;
 
 public import mir.random.engine;
 
+static import core.simd;
+
 version (LDC)
 {
     import ldc.intrinsics: log2 = llvm_log2;
@@ -319,6 +321,25 @@ version(mir_random_test) unittest
     assert(-double.min_normal < x && x < double.min_normal);
 }
 
+version(LDC) static if (is(core.simd.Vector!(ulong[2])))
+{
+    private @nogc nothrow pure @safe
+    {
+        pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
+
+        pragma(inline, true)
+        core.simd.ulong2 mul_128(ulong a, ulong b)
+        {
+            return inlineIR!(`
+                %a = zext i64 %0 to i128
+                %b = zext i64 %1 to i128
+                %ra = mul i128 %a, %b
+                %rb = bitcast i128 %ra to <2 x i64>
+                ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
+        }
+    }
+}
+
 /++
 Params:
     gen = uniform random number generator
@@ -329,34 +350,78 @@ Returns:
 T randIndex(T, G)(ref G gen, T m)
     if(isSaturatedRandomEngine!G && isUnsigned!T)
 {
-    alias R = EngineReturnType!G;
-    static if (R.sizeof >= T.sizeof * 2)
+    static if (EngineReturnType!G.sizeof >= T.sizeof * 2)
+        alias MaybeR = EngineReturnType!G;
+    else static if (uint.sizeof >= T.sizeof * 2)
+        alias MaybeR = uint;
+    else static if (ulong.sizeof >= T.sizeof * 2)
+        alias MaybeR = ulong;
+    else static if (is(ucent) && __traits(compiles, {static assert(ucent.sizeof >= T.sizeof * 2);}))
+        mixin ("alias MaybeR = ucent;");
+    else
+        alias MaybeR = void;
+
+    static if (!is(MaybeR == void))
     {
-        version (LDC)
+        if (!__ctfe)
         {
-            static if (R.sizeof >= T.sizeof * 2)
+            alias R = MaybeR;
+            static assert(R.sizeof >= T.sizeof * 2);
+            import mir.ndslice.internal: _expect;
+            //Use Daniel Lemire's fast alternative to modulo reduction:
+            //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+            R randombits = cast(R) gen.rand!T;
+            R multiresult = randombits * m;
+            T leftover = cast(T) multiresult;
+            if (_expect(leftover < m, false))
             {
-                if (!__ctfe)
+                immutable threshold = -m % m ;
+                while (leftover < threshold)
                 {
-                    //Use Daniel Lemire's fast alternative to modulo reduction:
-                    //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
-                    import mir.ndslice.internal: _expect;
-                    R randombits = cast(R) gen.rand!T;
-                    R multiresult = randombits * m;
-                    T leftover = cast(T) multiresult;
-                    if (_expect(leftover < m, false))
-                    {
-                        immutable threshold = -m % m ;
-                        while (leftover < threshold)
-                        {
-                            randombits =  cast(R) gen.rand!T;
-                            multiresult = randombits * m;
-                            leftover = cast(T) multiresult;
-                        }
-                    }
-                    enum finalshift = T.sizeof * 8;
-                    return cast(T) (multiresult >>> finalshift);
+                    randombits =  cast(R) gen.rand!T;
+                    multiresult = randombits * m;
+                    leftover = cast(T) multiresult;
                 }
+            }
+            enum finalshift = T.sizeof * 8;
+            return cast(T) (multiresult >>> finalshift);
+        }
+    }
+    else version(LDC)
+    {
+        static if (T.sizeof == ulong.sizeof && is(core.simd.Vector!(ulong[2])))
+        {
+            if (!__ctfe)
+            {
+                import mir.ndslice.internal: _expect;
+
+                version (LittleEndian)
+                    static struct S1 { ulong leftover, highbits; }
+                else version (BigEndian)
+                    static struct S1 { ulong highbits, leftover; }
+                else
+                    static assert(0, "Neither LittleEndian nor BigEndian!");
+
+                static union U1
+                {
+                    core.simd.ulong2 v;
+                    S1 s;
+                }
+                static assert(S1.sizeof == core.simd.ulong2.sizeof);
+
+                //Use Daniel Lemire's fast alternative to modulo reduction:
+                //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+                U1 u = void;
+                u.v = mul_128(gen.rand!ulong, cast(ulong)m);
+                if (_expect(u.s.leftover < m, false))
+                {
+                    immutable T threshold = -m % m;
+                    while (u.s.leftover < threshold)
+                    {
+                        u.v = mul_128(gen.rand!ulong, cast(ulong)m);
+                    }
+                }
+                return u.s.highbits;
             }
         }
     }
@@ -397,6 +462,20 @@ T randIndex(T, G)(ref G gen, T m)
         }();
 
     assert(s == e);
+}
+
+@nogc nothrow pure @safe version(mir_random_test) unittest
+{
+    //Test production of ulong from ulong generator.
+    import mir.random.engine.xorshift;
+    auto gen = Xoroshiro128Plus(1);
+    enum ulong limit = 2;
+    enum count = 10;
+    ulong[limit] buckets;
+    foreach (_; 0 .. count)
+        buckets[gen.randIndex!ulong(limit)] += 1;
+    foreach (i, x; buckets)
+        assert(x != count, "All values were the same!");
 }
 
 /++
