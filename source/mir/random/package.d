@@ -344,10 +344,10 @@ T randIndex(T, G)(ref G gen, T m)
                     R randombits = cast(R) gen.rand!T;
                     R multiresult = randombits * m;
                     T leftover = cast(T) multiresult;
-                    if (leftover < m)
+                    if (_expect(leftover < m, false))
                     {
                         immutable threshold = -m % m ;
-                        while (_expect(leftover < threshold, false))
+                        while (leftover < threshold)
                         {
                             randombits =  cast(R) gen.rand!T;
                             multiresult = randombits * m;
