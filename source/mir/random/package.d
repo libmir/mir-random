@@ -318,49 +318,51 @@ T randIndex(T, G)(ref G gen, T m)
     if(isSaturatedRandomEngine!G && isUnsigned!T)
 {
     alias R = EngineReturnType!G;
-    version (D_X32)
-        enum bool versionD_X32 = true;//On 64-bit machine but using 32-bit pointers.
-    else
-        enum bool versionD_X32 = false;
-    static if (R.sizeof >= T.sizeof * 2 && (size_t.sizeof >= R.sizeof || versionD_X32))
+    static if (R.sizeof >= T.sizeof * 2)
     {
-        //Use Daniel Lemire's fast alternative to modulo reduction:
-        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
-        enum rshift = (R.sizeof - T.sizeof) * 8;
-        auto randombits = gen() >>> rshift;
-        auto multiresult = randombits * m;
-        auto leftover = cast(T) multiresult;
-        if (leftover < m)
+        version (LDC)
         {
-            immutable threshold = -m % m ;
-            while (leftover < threshold)
+            static if (R.sizeof >= T.sizeof * 2)
             {
-                randombits =  gen() >>> rshift;
-                multiresult = randombits * m;
-                leftover = cast(T) multiresult;
+                if (!__ctfe)
+                {
+                    //Use Daniel Lemire's fast alternative to modulo reduction:
+                    //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+                    import mir.ndslice.internal: _expect;
+                    R randombits = cast(R) gen.rand!T;
+                    R multiresult = randombits * m;
+                    T leftover = cast(T) multiresult;
+                    if (leftover < m)
+                    {
+                        immutable threshold = -m % m ;
+                        while (_expect(leftover < threshold, false))
+                        {
+                            randombits =  cast(R) gen.rand!T;
+                            multiresult = randombits * m;
+                            leftover = cast(T) multiresult;
+                        }
+                    }
+                    enum finalshift = T.sizeof * 8;
+                    return cast(T) (multiresult >>> finalshift);
+                }
             }
         }
-        enum finalshift = T.sizeof * 8;//Not necessarily same as rshift. Maybe R.sizeof > T.sizeof * 2.
-        return cast(T) (multiresult >>> finalshift);
     }
-    else
+    //Default algorithm.
+    assert(m, "m must be positive");
+    T ret = void;
+    T val = void;
+    do
     {
-        //Default algorithm.
-        assert(m, "m must be positive");
-        T ret = void;
-        T val = void;
-        do
-        {
-            val = gen.rand!T;
-            ret = val % m;
-        }
-        while (val - ret > -m);
-        return ret;
+        val = gen.rand!T;
+        ret = val % m;
     }
+    while (val - ret > -m);
+    return ret;
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
