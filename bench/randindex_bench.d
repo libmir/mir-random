@@ -357,4 +357,32 @@ void main(string[] args)
         sw.stop;
         writefln("new mir.random.randIndex (potential inlining shenanigans): %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
     }
+
+    {
+        //Uniform distribution check.
+        static struct Counter
+        {
+            @nogc nothrow pure @safe:
+            enum bool isRandomEngine = true;
+            enum uint max = uint.max;
+            uint state;
+            @disable this();
+            @disable this(this);
+            this(uint state) { this.state = state; }
+            uint opCall() { return state++; }
+        }
+        import mir.random.engine;
+        enum uint nbuckets = uint(1u << 16);
+        static assert((1uL << 32) % nbuckets == 0);
+        enum uint expectedSize = uint((1uL << 32) / nbuckets);
+
+        Counter gen = Counter(0);
+        uint[] buckets = new uint[nbuckets];
+        foreach (_; 0uL .. ulong(1uL << 32))
+            buckets[gen.randIndexV2!uint(nbuckets)] += 1;
+        foreach (x; buckets)
+            if (x != expectedSize)
+                assert(0, "Non-uniform distribution!");
+        writeln("Uniform distribution check passed for randIndexV2.");
+    }
 }
