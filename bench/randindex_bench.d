@@ -100,7 +100,7 @@ T randIndexV1(T, G)(ref G gen, T m)
 }
 
 static import core.simd;
-version(LDC) static if (is(core.simd.Vector!(ulong[2])))
+version(LDC) static if (is(core.simd.Vector!(ulong[2])) && !is(ucent))
 {
     private @nogc nothrow pure @safe
     {
@@ -116,6 +116,18 @@ version(LDC) static if (is(core.simd.Vector!(ulong[2])))
                 %rb = bitcast i128 %ra to <2 x i64>
                 ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
         }
+
+        static union mul_128_u
+        {
+            core.simd.ulong2 v;
+
+            version (LittleEndian)
+                struct { ulong leftover, highbits; }
+            else version (BigEndian)
+                struct { ulong highbits, leftover; }
+            else
+                static assert(0, "Neither LittleEndian nor BigEndian!");
+        }
     }
 }
 
@@ -130,7 +142,7 @@ T randIndexV2(T, G)(ref G gen, T m)
     else static if (ulong.sizeof >= T.sizeof * 2)
         alias MaybeR = ulong;
     else static if (is(ucent) && __traits(compiles, {static assert(ucent.sizeof >= T.sizeof * 2);}))
-        mixin ("MaybeR = ucent;");
+        mixin ("alias MaybeR = ucent;");
     else
         alias MaybeR = void;
 
@@ -167,34 +179,19 @@ T randIndexV2(T, G)(ref G gen, T m)
             if (!__ctfe)
             {
                 import mir.ndslice.internal: _expect;
-
-                version (LittleEndian)
-                    static struct S1 { ulong leftover, highbits; }
-                else version (BigEndian)
-                    static struct S1 { ulong highbits, leftover; }
-                else
-                    static assert(0, "Neither LittleEndian nor BigEndian!");
-
-                static union U1
-                {
-                    core.simd.ulong2 v;
-                    S1 s;
-                }
-                static assert(S1.sizeof == core.simd.ulong2.sizeof);
-
                 //Use Daniel Lemire's fast alternative to modulo reduction:
                 //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
-                U1 u = void;
+                mul_128_u u = void;
                 u.v = mul_128(gen.rand!ulong, cast(ulong)m);
-                if (_expect(u.s.leftover < m, false))
+                if (_expect(u.leftover < m, false))
                 {
                     immutable T threshold = -m % m;
-                    while (u.s.leftover < threshold)
+                    while (u.leftover < threshold)
                     {
                         u.v = mul_128(gen.rand!ulong, cast(ulong)m);
                     }
                 }
-                return u.s.highbits;
+                return u.highbits;
             }
         }
     }
