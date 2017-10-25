@@ -214,7 +214,6 @@ T randIndexV2(T, G)(ref G gen, T m)
 void main(string[] args)
 {
     import std.meta : AliasSeq;
-    uint s = 0;
 
     foreach (PrngType; AliasSeq!(Mt19937, Mt19937_64, Xorshift1024StarPhi, Xoroshiro128Plus, pcg32_oneseq, pcg64_oneseq_once_insecure))
     {
@@ -227,6 +226,7 @@ void main(string[] args)
         static assert(count % (modulus_max - modulus_min) == 0);
         enum outer_loop_iterations = count / (modulus_max - modulus_min);
         enum warmup_outer_loop_iterations = min(outer_loop_iterations / 2, 2_000_000u);
+        ulong s = 0;
 
         StopWatch sw;
         sw.start;
@@ -241,6 +241,7 @@ void main(string[] args)
         sw.stop;
         sw.reset;
         gen.__ctor(seed);
+        s = 0;
         sw.start;
         foreach(_; 0..outer_loop_iterations)
         {
@@ -248,7 +249,7 @@ void main(string[] args)
                 s += gen.randIndexV1!ulong(m);
         }
         sw.stop;
-        writefln("randIndexV1: %s * 10 ^^ 8 calls/s", double(count) / sw.peek.msecs / 100_000);
+        writefln("randIndexV1: %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
         sw.start;
         foreach(_; 0 .. warmup_outer_loop_iterations) //boost CPU
         {
@@ -261,6 +262,7 @@ void main(string[] args)
         sw.stop;
         sw.reset;
         gen.__ctor(seed);
+        s = 0;
         sw.start;
         foreach(_; 0..outer_loop_iterations)
         {
@@ -268,7 +270,7 @@ void main(string[] args)
                 s += gen.randIndexV2!ulong(m);
         }
         sw.stop;
-        writefln("randIndexV2: %s * 10 ^^ 8 calls/s", double(count) / sw.peek.msecs / 100_000);
+        writefln("randIndexV2: %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
     }
 
     foreach (PrngType; AliasSeq!(Mt19937, Mt19937_64, Xorshift1024StarPhi, Xoroshiro128Plus, pcg32_oneseq, pcg64_oneseq_once_insecure))
@@ -282,6 +284,7 @@ void main(string[] args)
         static assert(count % (modulus_max - modulus_min) == 0);
         enum outer_loop_iterations = count / (modulus_max - modulus_min);
         enum warmup_outer_loop_iterations = min(outer_loop_iterations / 2, 2_000_000u);
+        ulong s = 0;
 
         StopWatch sw;
         sw.start;
@@ -296,14 +299,17 @@ void main(string[] args)
         sw.stop;
         sw.reset;
         gen.__ctor(seed);
+        s = 0;
         sw.start;
         foreach(_; 0..outer_loop_iterations)
         {
+            uint s1 = 0;
             foreach (m; modulus_min .. modulus_max)
-                s += gen.randIndexV1!uint(m);
+                s1 += gen.randIndexV1!uint(m);
+            s += s1;
         }
         sw.stop;
-        writefln("randIndexV1: %s * 10 ^^ 8 calls/s", double(count) / sw.peek.msecs / 100_000);
+        writefln("randIndexV1: %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
         sw.start;
         foreach(_; 0 .. warmup_outer_loop_iterations) //boost CPU
         {
@@ -316,14 +322,17 @@ void main(string[] args)
         sw.stop;
         sw.reset;
         gen.__ctor(seed);
+        s = 0;
         sw.start;
         foreach(_; 0..outer_loop_iterations)
         {
+            uint s1 = 0;
             foreach (m; modulus_min .. modulus_max)
-                s += gen.randIndexV2!uint(m);
+                s1 += gen.randIndexV2!uint(m);
+            s += s1;
         }
         sw.stop;
-        writefln("randIndexV2: %s * 10 ^^ 8 calls/s", double(count) / sw.peek.msecs / 100_000);
+        writefln("randIndexV2: %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
         sw.start;
         foreach(_; 0 .. warmup_outer_loop_iterations) //boost CPU
         {
@@ -336,14 +345,16 @@ void main(string[] args)
         sw.stop;
         sw.reset;
         gen.__ctor(seed);
+        s = 0;
         sw.start;
         foreach(_; 0..outer_loop_iterations)
         {
+            uint s1 = 0;
             foreach (m; modulus_min .. modulus_max)
-                s += gen.randIndex!uint(m);
+                s1 += gen.randIndex!uint(m);
+            s += s1;
         }
         sw.stop;
-        writefln("new mir.random.randIndex (potential inlining shenanigans): %s * 10 ^^ 8 calls/s", double(count) / sw.peek.msecs / 100_000);
+        writefln("new mir.random.randIndex (potential inlining shenanigans): %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
     }
-    writeln("Meaningless sum: ", s);
 }
