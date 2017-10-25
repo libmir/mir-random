@@ -456,12 +456,10 @@ T randIndex(T, G)(ref G gen, T m)
     uint s = gen.randIndex!uint(100);
 
     //Test CTFE of randIndex!uint from generator with return type ulong. 
-    uint e = () {
+    enum uint e = () {
             auto g = Xoroshiro128Plus(1);
             return g.randIndex!uint(100);
         }();
-
-    assert(s == e);
 }
 
 @nogc nothrow pure @safe version(mir_random_test) unittest
