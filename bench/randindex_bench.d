@@ -100,33 +100,42 @@ T randIndexV1(T, G)(ref G gen, T m)
 }
 
 static import core.simd;
-version(LDC) static if (is(core.simd.Vector!(ulong[2])) && !is(ucent))
+version (LDC)
 {
-    private @nogc nothrow pure @safe
+    //TODO: figure out specific feature flag or CPU versions where 128 bit multiplication works!
+    version (X86_64)
+        private enum bool probablyCanMultiply128 = true;
+    else
+        private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
+
+    static if (probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])) && !is(ucent))
     {
-        pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
-
-        pragma(inline, true)
-        core.simd.ulong2 mul_128(ulong a, ulong b)
+        private @nogc nothrow pure @safe
         {
-            return inlineIR!(`
-                %a = zext i64 %0 to i128
-                %b = zext i64 %1 to i128
-                %ra = mul i128 %a, %b
-                %rb = bitcast i128 %ra to <2 x i64>
-                ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
-        }
+            pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
 
-        static union mul_128_u
-        {
-            core.simd.ulong2 v;
+            pragma(inline, true)
+            core.simd.ulong2 mul_128(ulong a, ulong b)
+            {
+                return inlineIR!(`
+                    %a = zext i64 %0 to i128
+                    %b = zext i64 %1 to i128
+                    %ra = mul i128 %a, %b
+                    %rb = bitcast i128 %ra to <2 x i64>
+                    ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
+            }
 
-            version (LittleEndian)
-                struct { ulong leftover, highbits; }
-            else version (BigEndian)
-                struct { ulong highbits, leftover; }
-            else
-                static assert(0, "Neither LittleEndian nor BigEndian!");
+            static union mul_128_u
+            {
+                core.simd.ulong2 v;
+
+                version (LittleEndian)
+                    struct { ulong leftover, highbits; }
+                else version (BigEndian)
+                    struct { ulong highbits, leftover; }
+                else
+                    static assert(0, "Neither LittleEndian nor BigEndian!");
+            }
         }
     }
 }

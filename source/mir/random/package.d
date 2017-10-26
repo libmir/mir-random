@@ -321,33 +321,42 @@ version(mir_random_test) unittest
     assert(-double.min_normal < x && x < double.min_normal);
 }
 
-version(LDC) static if (is(core.simd.Vector!(ulong[2])) && !is(ucent))
+version (LDC)
 {
-    private @nogc nothrow pure @safe
+    //TODO: figure out specific feature flag or CPU versions where 128 bit multiplication works!
+    version (X86_64)
+        private enum bool probablyCanMultiply128 = true;
+    else
+        private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
+
+    static if (probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])) && !is(ucent))
     {
-        pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
-
-        pragma(inline, true)
-        core.simd.ulong2 mul_128(ulong a, ulong b)
+        private @nogc nothrow pure @safe
         {
-            return inlineIR!(`
-                %a = zext i64 %0 to i128
-                %b = zext i64 %1 to i128
-                %ra = mul i128 %a, %b
-                %rb = bitcast i128 %ra to <2 x i64>
-                ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
-        }
+            pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
 
-        static union mul_128_u
-        {
-            core.simd.ulong2 v;
+            pragma(inline, true)
+            core.simd.ulong2 mul_128(ulong a, ulong b)
+            {
+                return inlineIR!(`
+                    %a = zext i64 %0 to i128
+                    %b = zext i64 %1 to i128
+                    %ra = mul i128 %a, %b
+                    %rb = bitcast i128 %ra to <2 x i64>
+                    ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
+            }
 
-            version (LittleEndian)
-                struct { ulong leftover, highbits; }
-            else version (BigEndian)
-                struct { ulong highbits, leftover; }
-            else
-                static assert(0, "Neither LittleEndian nor BigEndian!");
+            static union mul_128_u
+            {
+                core.simd.ulong2 v;
+
+                version (LittleEndian)
+                    struct { ulong leftover, highbits; }
+                else version (BigEndian)
+                    struct { ulong highbits, leftover; }
+                else
+                    static assert(0, "Neither LittleEndian nor BigEndian!");
+            }
         }
     }
 }
@@ -401,7 +410,7 @@ T randIndex(T, G)(ref G gen, T m)
     }
     else version(LDC)
     {
-        static if (T.sizeof == ulong.sizeof && is(core.simd.Vector!(ulong[2])))
+        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])))
         {
             if (!__ctfe)
             {
@@ -464,11 +473,15 @@ T randIndex(T, G)(ref G gen, T m)
     //Test production of ulong from ulong generator.
     import mir.random.engine.xorshift;
     auto gen = Xoroshiro128Plus(1);
-    enum ulong limit = 2;
+    enum ulong limit = 10;
     enum count = 10;
     ulong[limit] buckets;
     foreach (_; 0 .. count)
-        buckets[gen.randIndex!ulong(limit)] += 1;
+    {
+        ulong x = gen.randIndex!ulong(limit);
+        assert(x < limit);
+        buckets[cast(size_t) x] += 1;
+    }
     foreach (i, x; buckets)
         assert(x != count, "All values were the same!");
 }
