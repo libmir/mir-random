@@ -28,8 +28,6 @@ import std.traits;
 
 public import mir.random.engine;
 
-static import core.simd;
-
 version (LDC)
 {
     import ldc.intrinsics: log2 = llvm_log2;
@@ -342,33 +340,31 @@ version (LDC)
     else
         private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
 
-    static if (probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])) && !is(ucent))
+    static if (probablyCanMultiply128 && !is(ucent))
     {
         private @nogc nothrow pure @safe
         {
             pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
 
             pragma(inline, true)
-            core.simd.ulong2 mul_128(ulong a, ulong b)
+            ulong[2] mul_128(ulong a, ulong b)
             {
                 return inlineIR!(`
                     %a = zext i64 %0 to i128
                     %b = zext i64 %1 to i128
-                    %ra = mul i128 %a, %b
-                    %rb = bitcast i128 %ra to <2 x i64>
-                    ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
+                    %m = mul i128 %a, %b
+                    %n = lshr i128 %m, 64
+                    %h = trunc i128 %n to i64
+                    %l = trunc i128 %m to i64
+                    %agg1 = insertvalue [2 x i64] undef, i64 %l, 0
+                    %agg2 = insertvalue [2 x i64] %agg1, i64 %h, 1
+                    ret [2 x i64] %agg2`, ulong[2])(a, b);
             }
 
             static union mul_128_u
             {
-                core.simd.ulong2 v;
-
-                version (LittleEndian)
-                    struct { ulong leftover, highbits; }
-                else version (BigEndian)
-                    struct { ulong highbits, leftover; }
-                else
-                    static assert(0, "Neither LittleEndian nor BigEndian!");
+                ulong[2] v;
+                struct { ulong leftover, highbits; }
             }
         }
     }
@@ -423,7 +419,7 @@ T randIndex(T, G)(ref G gen, T m)
     }
     else version(LDC)
     {
-        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])))
+        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128)
         {
             if (!__ctfe)
             {

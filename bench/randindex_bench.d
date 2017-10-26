@@ -24,28 +24,28 @@ Sample results on Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz
 //
 
 Benchmarks for generating ulong from MersenneTwisterEngine!(uint, 32LU, 624LU, 397LU, 31LU, 2567483615u, 11LU, 4294967295u, 7LU, 2636928640u, 15LU, 4022730752u, 18LU, 1812433253u):
-randIndexV1: 0.634417 * 10 ^^ 8 calls/s
-randIndexV2: 1.05277 * 10 ^^ 8 calls/s
+randIndexV1: 0.633563 * 10 ^^ 8 calls/s; sum = 21800330329
+randIndexV2: 1.11266 * 10 ^^ 8 calls/s; sum = 21799356954
 
 Benchmarks for generating ulong from MersenneTwisterEngine!(ulong, 64LU, 312LU, 156LU, 31LU, 13043109905998158313LU, 29LU, 6148914691236517205LU, 17LU, 8202884508482404352LU, 37LU, 18444473444759240704LU, 43LU, 6364136223846793005LU):
-randIndexV1: 0.766284 * 10 ^^ 8 calls/s
-randIndexV2: 1.72228 * 10 ^^ 8 calls/s
+randIndexV1: 0.796416 * 10 ^^ 8 calls/s; sum = 21799577506
+randIndexV2: 1.87091 * 10 ^^ 8 calls/s; sum = 21800184913
 
 Benchmarks for generating ulong from XorshiftStarEngine!(ulong, 1024u, 31u, 11u, 30u, 11400714819323198483LU, ulong):
-randIndexV1: 1.05056 * 10 ^^ 8 calls/s
-randIndexV2: 2.71278 * 10 ^^ 8 calls/s
+randIndexV1: 1.06966 * 10 ^^ 8 calls/s; sum = 21799501203
+randIndexV2: 3.05227 * 10 ^^ 8 calls/s; sum = 21799876814
 
 Benchmarks for generating ulong from Xoroshiro128Plus:
-randIndexV1: 1.0661 * 10 ^^ 8 calls/s
-randIndexV2: 3.69857 * 10 ^^ 8 calls/s
+randIndexV1: 1.0195 * 10 ^^ 8 calls/s; sum = 21799621342
+randIndexV2: 4.40044 * 10 ^^ 8 calls/s; sum = 21800425876
 
 Benchmarks for generating ulong from PermutedCongruentialEngine!(xsh_rr, cast(stream_t)2, true):
-randIndexV1: 0.722413 * 10 ^^ 8 calls/s
-randIndexV2: 1.44875 * 10 ^^ 8 calls/s
+randIndexV1: 0.718778 * 10 ^^ 8 calls/s; sum = 21799772797
+randIndexV2: 1.55491 * 10 ^^ 8 calls/s; sum = 21799158450
 
 Benchmarks for generating ulong from PermutedCongruentialEngine!(rxs_m_xs_forward, cast(stream_t)2, true):
-randIndexV1: 0.861141 * 10 ^^ 8 calls/s
-randIndexV2: 2.30083 * 10 ^^ 8 calls/s
+randIndexV1: 0.866363 * 10 ^^ 8 calls/s; sum = 21799794704
+randIndexV2: 2.52525 * 10 ^^ 8 calls/s; sum = 21800197408
 
 //
 // GENERATING UINT BENCHMARKS
@@ -99,7 +99,6 @@ T randIndexV1(T, G)(ref G gen, T m)
     return ret;
 }
 
-static import core.simd;
 version (LDC)
 {
     //TODO: figure out specific feature flag or CPU versions where 128 bit multiplication works!
@@ -108,33 +107,31 @@ version (LDC)
     else
         private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
 
-    static if (probablyCanMultiply128 && is(core.simd.Vector!(ulong[2])) && !is(ucent))
+    static if (probablyCanMultiply128 && !is(ucent))
     {
         private @nogc nothrow pure @safe
         {
             pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
 
             pragma(inline, true)
-            core.simd.ulong2 mul_128(ulong a, ulong b)
+            ulong[2] mul_128(ulong a, ulong b)
             {
                 return inlineIR!(`
                     %a = zext i64 %0 to i128
                     %b = zext i64 %1 to i128
-                    %ra = mul i128 %a, %b
-                    %rb = bitcast i128 %ra to <2 x i64>
-                    ret <2 x i64> %rb`, core.simd.ulong2)(a, b);
+                    %m = mul i128 %a, %b
+                    %n = lshr i128 %m, 64
+                    %h = trunc i128 %n to i64
+                    %l = trunc i128 %m to i64
+                    %agg1 = insertvalue [2 x i64] undef, i64 %l, 0
+                    %agg2 = insertvalue [2 x i64] %agg1, i64 %h, 1
+                    ret [2 x i64] %agg2`, ulong[2])(a, b);
             }
 
             static union mul_128_u
             {
-                core.simd.ulong2 v;
-
-                version (LittleEndian)
-                    struct { ulong leftover, highbits; }
-                else version (BigEndian)
-                    struct { ulong highbits, leftover; }
-                else
-                    static assert(0, "Neither LittleEndian nor BigEndian!");
+                ulong[2] v;
+                struct { ulong leftover, highbits; }
             }
         }
     }
@@ -183,7 +180,7 @@ T randIndexV2(T, G)(ref G gen, T m)
     }
     else version(LDC)
     {
-        static if (T.sizeof == ulong.sizeof && is(core.simd.Vector!(ulong[2])))
+        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128)
         {
             if (!__ctfe)
             {
@@ -191,7 +188,8 @@ T randIndexV2(T, G)(ref G gen, T m)
                 //Use Daniel Lemire's fast alternative to modulo reduction:
                 //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
                 mul_128_u u = void;
-                u.v = mul_128(gen.rand!ulong, cast(ulong)m);
+                ulong r = gen.rand!ulong;
+                u.v = mul_128(r, cast(ulong)m);
                 if (_expect(u.leftover < m, false))
                 {
                     immutable T threshold = -m % m;
