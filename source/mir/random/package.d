@@ -61,22 +61,10 @@ T rand(T, G)(ref G gen)
     enum P = T.sizeof / R.sizeof;
     static if (P > 1)
     {
-        static if (is(typeof((ref G g) @safe => g())))
-        {
-            return () @trusted {
-            T ret = void;
-            foreach(p; 0..P)
-                (cast(R*)(&ret))[p] = gen();
-            return ret;
-                }();
-        }
-        else
-        {
-            T ret = void;
-            foreach(p; 0..P)
-                (cast(R*)(&ret))[p] = gen();
-            return ret;
-        }
+        _Uab!(R[P],T) u = void;
+        foreach (ref e; u.asArray)
+            e = gen();
+        return u.asInteger;
     }
     else static if (preferHighBits!G && P == 0)
     {
@@ -91,7 +79,7 @@ T rand(T, G)(ref G gen)
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -113,7 +101,7 @@ bool rand(T : bool, G)(ref G gen)
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -157,7 +145,7 @@ T rand(T, G)(ref G gen)
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -166,7 +154,7 @@ version(mir_random_test) unittest
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -175,7 +163,7 @@ version(mir_random_test) unittest
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -202,6 +190,29 @@ private static union _U
     }
 }
 
+private static union _Uab(A,B) if (A.sizeof == B.sizeof && !is(Unqual!A == Unqual!B))
+{
+    A a;
+    B b;
+
+    private import std.traits: isArray, isIntegral, isFloatingPoint;
+
+    static if (isArray!A && !isArray!B)
+        alias asArray = a;
+    static if (isArray!B && !isArray!A)
+        alias asArray = b;
+
+    static if (isIntegral!A && !isIntegral!B)
+        alias asInteger = a;
+    static if (isIntegral!B && !isIntegral!A)
+        alias asInteger = b;
+
+    static if (isFloatingPoint!A && !isFloatingPoint!B)
+        alias asFloatingPoint = a;
+    static if (isFloatingPoint!B && !isFloatingPoint!A)
+        alias asFloatingPoint = b;
+}
+
 /++
 Params:
     gen = saturated random number generator
@@ -217,48 +228,50 @@ T rand(T, G)(ref G gen, sizediff_t boundExp = 0)
     enum W = T.sizeof * 8 - T.mant_dig - 1 - bool(T.mant_dig == 64);
     static if (T.mant_dig == float.mant_dig)
     {
-        auto d = gen.rand!int;
+        _Uab!(int,float) u = void;
+        u.asInteger = gen.rand!int;
         enum uint EXPMASK = 0x7F80_0000;
         boundExp -= T.min_exp - 1;
-        size_t exp = EXPMASK & d;
+        size_t exp = EXPMASK & u.asInteger;
         exp = boundExp - (exp ? bsf(exp) - (T.mant_dig - 1) : gen.randGeometric + W);
-        d &= ~EXPMASK;
+        u.asInteger &= ~EXPMASK;
         if(cast(sizediff_t)exp < 0)
         {
             exp = -cast(sizediff_t)exp;
-            uint m = d & int.max;
+            uint m = u.asInteger & int.max;
             if(exp >= T.mant_dig)
                 m = 0;
             else
                 m >>= cast(uint)exp;
-            d = (d & ~int.max) ^ m;
+            u.asInteger = (u.asInteger & ~int.max) ^ m;
             exp = 0;
         }
-        d = cast(uint)(exp << (T.mant_dig - 1)) ^ d;
-        return *cast(T*)&d;
+        u.asInteger = cast(uint)(exp << (T.mant_dig - 1)) ^ u.asInteger;
+        return u.asFloatingPoint;
     }
     else
     static if (T.mant_dig == double.mant_dig)
     {
-        auto d = gen.rand!long;
+        _Uab!(long,double) u = void;
+        u.asInteger = gen.rand!long;
         enum ulong EXPMASK = 0x7FF0_0000_0000_0000;
         boundExp -= T.min_exp - 1;
-        ulong exp = EXPMASK & d;
+        ulong exp = EXPMASK & u.asInteger;
         exp = boundExp - (exp ? bsf(exp) - (T.mant_dig - 1) : gen.randGeometric + W);
-        d &= ~EXPMASK;
+        u.asInteger &= ~EXPMASK;
         if(cast(long)exp < 0)
         {
             exp = -cast(sizediff_t)exp;
-            ulong m = d & long.max;
+            ulong m = u.asInteger & long.max;
             if(exp >= T.mant_dig)
                 m = 0;
             else
                 m >>= cast(uint)exp;
-            d = (d & ~long.max) ^ m;
+            u.asInteger = (u.asInteger & ~long.max) ^ m;
             exp = 0;
         }
-        d = (exp << (T.mant_dig - 1)) ^ d;
-        return *cast(T*)&d;
+        u.asInteger = (exp << (T.mant_dig - 1)) ^ u.asInteger;
+        return u.asFloatingPoint;
     }
     else
     static if (T.mant_dig == 64)
@@ -292,7 +305,7 @@ T rand(T, G)(ref G gen, sizediff_t boundExp = 0)
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.math.common: fabs;
     import mir.random.engine.xorshift;
@@ -313,7 +326,7 @@ version(mir_random_test) unittest
 
 
 /// Subnormal numbers
-version(mir_random_test) unittest
+@nogc nothrow pure @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(1);
@@ -502,6 +515,13 @@ size_t randGeometric(G)(ref G gen)
             return count + bsf(val);
 }
 
+@nogc nothrow pure @safe version(mir_random_test) unittest
+{
+    import mir.random.engine.xorshift;
+    auto gen = Xoroshiro128Plus(1);
+    size_t s = gen.randGeometric;//Merely verify the call is @safe etc.
+}
+
 /++
 Params:
     gen = saturated random number generator
@@ -515,24 +535,26 @@ T randExponential2(T, G)(ref G gen)
     enum W = T.sizeof * 8 - T.mant_dig - 1 - bool(T.mant_dig == 64);
     static if (is(T == float))
     {
-        auto d = gen.rand!uint;
+        _Uab!(uint,float) u = void;
+        u.asInteger = gen.rand!uint;
         enum uint EXPMASK = 0xFF80_0000;
-        auto exp = EXPMASK & d;
-        d &= ~EXPMASK;
-        d ^= 0x3F000000; // 0.5
+        auto exp = EXPMASK & u.asInteger;
+        u.asInteger &= ~EXPMASK;
+        u.asInteger ^= 0x3F000000; // 0.5
         auto y = exp ? bsf(exp) - (T.mant_dig - 1) : gen.randGeometric + W;
-        auto x = *cast(T*)&d;
+        auto x = u.asFloatingPoint;
     }
     else
     static if (is(T == double))
     {
-        auto d = gen.rand!ulong;
+        _Uab!(ulong,double) u = void;
+        u.asInteger = gen.rand!ulong;
         enum ulong EXPMASK = 0xFFF0_0000_0000_0000;
-        auto exp = EXPMASK & d;
-        d &= ~EXPMASK;
-        d ^= 0x3FE0000000000000; // 0.5
+        auto exp = EXPMASK & u.asInteger;
+        u.asInteger &= ~EXPMASK;
+        u.asInteger ^= 0x3FE0000000000000; // 0.5
         auto y = exp ? bsf(exp) - (T.mant_dig - 1) : gen.randGeometric + W;
-        auto x = *cast(T*)&d;
+        auto x = u.asFloatingPoint;
     }
     else
     static if (T.mant_dig == 64)
@@ -553,7 +575,7 @@ T randExponential2(T, G)(ref G gen)
 }
 
 ///
-version(mir_random_test) unittest
+@nogc nothrow @safe version(mir_random_test) unittest
 {
     import mir.random.engine.xorshift;
     auto gen = Xorshift(cast(uint)unpredictableSeed);
