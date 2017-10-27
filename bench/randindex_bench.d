@@ -99,44 +99,6 @@ T randIndexV1(T, G)(ref G gen, T m)
     return ret;
 }
 
-version (LDC)
-{
-    //TODO: figure out specific feature flag or CPU versions where 128 bit multiplication works!
-    version (X86_64)
-        private enum bool probablyCanMultiply128 = true;
-    else
-        private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
-
-    static if (probablyCanMultiply128 && !is(ucent))
-    {
-        private @nogc nothrow pure @safe
-        {
-            pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
-
-            pragma(inline, true)
-            ulong[2] mul_128(ulong a, ulong b)
-            {
-                return inlineIR!(`
-                    %a = zext i64 %0 to i128
-                    %b = zext i64 %1 to i128
-                    %m = mul i128 %a, %b
-                    %n = lshr i128 %m, 64
-                    %h = trunc i128 %n to i64
-                    %l = trunc i128 %m to i64
-                    %agg1 = insertvalue [2 x i64] undef, i64 %l, 0
-                    %agg2 = insertvalue [2 x i64] %agg1, i64 %h, 1
-                    ret [2 x i64] %agg2`, ulong[2])(a, b);
-            }
-
-            static union mul_128_u
-            {
-                ulong[2] v;
-                struct { ulong leftover, highbits; }
-            }
-        }
-    }
-}
-
 T randIndexV2(T, G)(ref G gen, T m)
     if(isSaturatedRandomEngine!G && isUnsigned!T)
 {
@@ -152,9 +114,9 @@ T randIndexV2(T, G)(ref G gen, T m)
     else
         alias MaybeR = void;
 
-    static if (!is(MaybeR == void))
+    version (LDC) if (!__ctfe)
     {
-        if (!__ctfe)
+        static if (!is(MaybeR == void))
         {
             alias R = MaybeR;
             static assert(R.sizeof >= T.sizeof * 2);
@@ -177,42 +139,63 @@ T randIndexV2(T, G)(ref G gen, T m)
             enum finalshift = T.sizeof * 8;
             return cast(T) (multiresult >>> finalshift);
         }
-    }
-    else version(LDC)
-    {
-        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128)
+        else
         {
-            if (!__ctfe)
+            import mir.utility : extMul;
+            import mir.ndslice.internal: _expect;
+            //Use Daniel Lemire's fast alternative to modulo reduction:
+            //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+            auto u = extMul!T(gen.rand!T, m);
+            if (_expect(u.low < m, false))
             {
-                import mir.ndslice.internal: _expect;
-                //Use Daniel Lemire's fast alternative to modulo reduction:
-                //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
-                mul_128_u u = void;
-                ulong r = gen.rand!ulong;
-                u.v = mul_128(r, cast(ulong)m);
-                if (_expect(u.leftover < m, false))
+                immutable T threshold = -m % m;
+                while (u.low < threshold)
                 {
-                    immutable T threshold = -m % m;
-                    while (u.leftover < threshold)
-                    {
-                        u.v = mul_128(gen.rand!ulong, cast(ulong)m);
-                    }
+                    u = extMul!T(gen.rand!T, m);
                 }
-                return u.highbits;
             }
+            return u.high;
         }
     }
-    //Default algorithm.
-    assert(m, "m must be positive");
-    T ret = void;
-    T val = void;
-    do
+
+    static if (!is(MaybeR == void))
     {
-        val = gen.rand!T;
-        ret = val % m;
+        alias R = MaybeR;
+        static assert(R.sizeof >= T.sizeof * 2);
+        //Use Daniel Lemire's fast alternative to modulo reduction:
+        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+        R randombits = cast(R) gen.rand!T;
+        R multiresult = randombits * m;
+        T leftover = cast(T) multiresult;
+        if (leftover < m)
+        {
+            immutable threshold = -m % m ;
+            while (leftover < threshold)
+            {
+                randombits =  cast(R) gen.rand!T;
+                multiresult = randombits * m;
+                leftover = cast(T) multiresult;
+            }
+        }
+        enum finalshift = T.sizeof * 8;
+        return cast(T) (multiresult >>> finalshift);
     }
-    while (val - ret > -m);
-    return ret;
+    else
+    {
+        import mir.utility : extMul;
+        //Use Daniel Lemire's fast alternative to modulo reduction:
+        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+        auto u = extMul!T(gen.rand!T, m);
+        if (u.low < m)
+        {
+            immutable T threshold = -m % m;
+            while (u.low < threshold)
+            {
+                u = extMul!T(gen.rand!T, m);
+            }
+        }
+        return u.high;
+    }
 }
 
 void main(string[] args)
@@ -362,31 +345,35 @@ void main(string[] args)
         writefln("new mir.random.randIndex (potential inlining shenanigans): %s * 10 ^^ 8 calls/s; sum = %d", double(count) / sw.peek.msecs / 100_000, s);
     }
 
+    //Uniform distribution check.
+    static struct Counter(UInt) if (isUnsigned!UInt)
     {
-        //Uniform distribution check.
-        static struct Counter
-        {
-            @nogc nothrow pure @safe:
-            enum bool isRandomEngine = true;
-            enum uint max = uint.max;
-            uint state;
-            @disable this();
-            @disable this(this);
-            this(uint state) { this.state = state; }
-            uint opCall() { return state++; }
-        }
-        import mir.random.engine;
-        enum uint nbuckets = uint(1u << 16);
-        static assert((1uL << 32) % nbuckets == 0);
-        enum uint expectedSize = uint((1uL << 32) / nbuckets);
+        @nogc nothrow pure @safe:
+        enum bool isRandomEngine = true;
+        enum UInt max = UInt.max;
+        UInt state;
+        @disable this();
+        @disable this(this);
+        this(UInt state) { this.state = state; }
+        UInt opCall() { return state++; }
+    }
+    foreach (IntType; AliasSeq!(ubyte,ushort,uint))
+    {
+        static if (IntType.sizeof <= ushort.sizeof)
+            enum nbuckets = size_t(IntType.max - 1);
+        else
+            enum nbuckets = size_t(ushort.max - 1);
+        enum ulong numDistinctValues = (1UL << (IntType.sizeof * 8));
+        enum IntType expectedSizeRoundDown = IntType(numDistinctValues / nbuckets);
+        enum IntType remainder = IntType(numDistinctValues % nbuckets);
 
-        Counter gen = Counter(0);
-        uint[] buckets = new uint[nbuckets];
-        foreach (_; 0uL .. ulong(1uL << 32))
-            buckets[gen.randIndexV2!uint(nbuckets)] += 1;
-        foreach (x; buckets)
-            if (x != expectedSize)
-                assert(0, "Non-uniform distribution!");
-        writeln("Uniform distribution check passed for randIndexV2.");
+        IntType[] buckets = new IntType[nbuckets];
+        auto gen = Counter!IntType(0);
+        foreach (_; 0u .. numDistinctValues)
+            buckets[gen.randIndexV2!IntType(nbuckets)] += 1;
+        foreach (i, x; buckets)
+            if (x < expectedSizeRoundDown || x > expectedSizeRoundDown + remainder)
+                assert(0);
+        writeln("Uniformity check passed for randIndexV2!"~IntType.stringof);
     }
 }

@@ -14,7 +14,7 @@ $(T2 randExponential2, Generates scaled Exponential distribution.)
 
 Publicly includes  `mir.random.engine`.
 
-Authors: Ilya Yaroshenko
+Authors: Ilya Yaroshenko, Nathan Sashihara
 Copyright: Copyright, Ilya Yaroshenko 2016-.
 License:    $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Macros:
@@ -332,44 +332,6 @@ T rand(T, G)(ref G gen, sizediff_t boundExp = 0)
     assert(-double.min_normal < x && x < double.min_normal);
 }
 
-version (LDC)
-{
-    //TODO: figure out specific feature flag or CPU versions where 128 bit multiplication works!
-    version (X86_64)
-        private enum bool probablyCanMultiply128 = true;
-    else
-        private enum bool probablyCanMultiply128 = size_t.sizeof >= ulong.sizeof;
-
-    static if (probablyCanMultiply128 && !is(ucent))
-    {
-        private @nogc nothrow pure @safe
-        {
-            pragma(LDC_inline_ir) R inlineIR(string s, R, P...)(P);
-
-            pragma(inline, true)
-            ulong[2] mul_128(ulong a, ulong b)
-            {
-                return inlineIR!(`
-                    %a = zext i64 %0 to i128
-                    %b = zext i64 %1 to i128
-                    %m = mul i128 %a, %b
-                    %n = lshr i128 %m, 64
-                    %h = trunc i128 %n to i64
-                    %l = trunc i128 %m to i64
-                    %agg1 = insertvalue [2 x i64] undef, i64 %l, 0
-                    %agg2 = insertvalue [2 x i64] %agg1, i64 %h, 1
-                    ret [2 x i64] %agg2`, ulong[2])(a, b);
-            }
-
-            static union mul_128_u
-            {
-                ulong[2] v;
-                struct { ulong leftover, highbits; }
-            }
-        }
-    }
-}
-
 /++
 Params:
     gen = uniform random number generator
@@ -391,9 +353,9 @@ T randIndex(T, G)(ref G gen, T m)
     else
         alias MaybeR = void;
 
-    static if (!is(MaybeR == void))
+    version (LDC) if (!__ctfe)
     {
-        if (!__ctfe)
+        static if (!is(MaybeR == void))
         {
             alias R = MaybeR;
             static assert(R.sizeof >= T.sizeof * 2);
@@ -416,41 +378,63 @@ T randIndex(T, G)(ref G gen, T m)
             enum finalshift = T.sizeof * 8;
             return cast(T) (multiresult >>> finalshift);
         }
-    }
-    else version(LDC)
-    {
-        static if (T.sizeof == ulong.sizeof && probablyCanMultiply128)
+        else
         {
-            if (!__ctfe)
+            import mir.utility : extMul;
+            import mir.ndslice.internal: _expect;
+            //Use Daniel Lemire's fast alternative to modulo reduction:
+            //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+            auto u = extMul!T(gen.rand!T, m);
+            if (_expect(u.low < m, false))
             {
-                import mir.ndslice.internal: _expect;
-                //Use Daniel Lemire's fast alternative to modulo reduction:
-                //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
-                mul_128_u u = void;
-                u.v = mul_128(gen.rand!ulong, cast(ulong)m);
-                if (_expect(u.leftover < m, false))
+                immutable T threshold = -m % m;
+                while (u.low < threshold)
                 {
-                    immutable T threshold = -m % m;
-                    while (u.leftover < threshold)
-                    {
-                        u.v = mul_128(gen.rand!ulong, cast(ulong)m);
-                    }
+                    u = extMul!T(gen.rand!T, m);
                 }
-                return u.highbits;
             }
+            return u.high;
         }
     }
-    //Default algorithm.
-    assert(m, "m must be positive");
-    T ret = void;
-    T val = void;
-    do
+
+    static if (!is(MaybeR == void))
     {
-        val = gen.rand!T;
-        ret = val % m;
+        alias R = MaybeR;
+        static assert(R.sizeof >= T.sizeof * 2);
+        //Use Daniel Lemire's fast alternative to modulo reduction:
+        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+        R randombits = cast(R) gen.rand!T;
+        R multiresult = randombits * m;
+        T leftover = cast(T) multiresult;
+        if (leftover < m)
+        {
+            immutable threshold = -m % m ;
+            while (leftover < threshold)
+            {
+                randombits =  cast(R) gen.rand!T;
+                multiresult = randombits * m;
+                leftover = cast(T) multiresult;
+            }
+        }
+        enum finalshift = T.sizeof * 8;
+        return cast(T) (multiresult >>> finalshift);
     }
-    while (val - ret > -m);
-    return ret;
+    else
+    {
+        import mir.utility : extMul;
+        //Use Daniel Lemire's fast alternative to modulo reduction:
+        //https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+        auto u = extMul!T(gen.rand!T, m);
+        if (u.low < m)
+        {
+            immutable T threshold = -m % m;
+            while (u.low < threshold)
+            {
+                u = extMul!T(gen.rand!T, m);
+            }
+        }
+        return u.high;
+    }
 }
 
 ///
@@ -464,17 +448,15 @@ T randIndex(T, G)(ref G gen, T m)
 
 @nogc nothrow pure @safe version(mir_random_test) unittest
 {
-    //Test randIndex!uint from generator with return type ulong.
-    import mir.random.engine.xorshift;
-    auto gen = Xoroshiro128Plus(1);
-    static assert(is(EngineReturnType!(typeof(gen)) == ulong));
-    uint s = gen.randIndex!uint(100);
-
-    //Test CTFE of randIndex!uint from generator with return type ulong. 
-    enum uint e = () {
-            auto g = Xoroshiro128Plus(1);
-            return g.randIndex!uint(100);
-        }();
+    //CTFE check.
+    import std.meta : AliasSeq;
+    import mir.random.engine.xorshift : Xoroshiro128Plus;
+    foreach (IntType; AliasSeq!(ubyte,ushort,uint,ulong))
+    {
+        enum IntType e = (){auto g = Xoroshiro128Plus(1); return g.randIndex!IntType(100);}();
+        auto gen = Xoroshiro128Plus(1);
+        assert(e == gen.randIndex!IntType(100));
+    }
 }
 
 @nogc nothrow pure @safe version(mir_random_test) unittest
