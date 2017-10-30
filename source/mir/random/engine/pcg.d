@@ -223,11 +223,7 @@ public:
         state = cast(Uint)(acc_mult*state + acc_plus);
     }
 
-    static if (!output_previous)
-    {
-        //InputRange mode is only low-cost when output_previous == true.
-    }
-    else
+    static if (output_previous)
     {
         /++
         Compatibility with Phobos library methods. Presents this RNG as an
@@ -259,12 +255,12 @@ public:
     //Test that the default generators (all having output_previous==true)
     //can be used as Phobos-style randoms.
     import std.meta: AliasSeq;
-    import std.random: isSeedable, isUniformRNG;
+    import std.random: isSeedable, isPhobosUniformRNG = isUniformRNG;
     foreach(RNG; AliasSeq!(pcg32, pcg32_oneseq, pcg32_fast,
                            pcg32_once_insecure, pcg32_oneseq_once_insecure,
                            pcg64_once_insecure, pcg64_oneseq_once_insecure))
     {
-        static assert(isUniformRNG!(RNG, typeof(RNG.max)));
+        static assert(isPhobosUniformRNG!(RNG, typeof(RNG.max)));
         static assert(isSeedable!(RNG, RNG.Uint));
         auto gen1 = RNG(1);
         auto gen2 = RNG(2);
@@ -278,7 +274,7 @@ public:
 
     foreach(RNG; AliasSeq!(pcg32_unique))
     {
-        static assert(isUniformRNG!(RNG, typeof(RNG.max)));
+        static assert(isPhobosUniformRNG!(RNG, typeof(RNG.max)));
         static assert(isSeedable!(RNG, RNG.Uint));
     }
 }

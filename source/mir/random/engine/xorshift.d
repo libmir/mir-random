@@ -556,8 +556,8 @@ struct Xoroshiro128Plus
 @nogc nothrow pure @safe version(mir_random_test) unittest
 {
     //Test Xoroshiro128Plus can be used as a Phobos-style random.
-    import std.random: isSeedable, isUniformRNG;
-    static assert(isUniformRNG!(Xoroshiro128Plus, ulong));
+    import std.random: isSeedable, isPhobosUniformRNG = isUniformRNG;
+    static assert(isPhobosUniformRNG!(Xoroshiro128Plus, ulong));
     static assert(isSeedable!(Xoroshiro128Plus, ulong));
     auto gen1 = Xoroshiro128Plus(1);
     auto gen2 = Xoroshiro128Plus(2);
