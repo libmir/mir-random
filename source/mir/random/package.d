@@ -446,7 +446,15 @@ T randExponential2(T, G)(ref G gen)
     auto v = gen.randExponential2!double();
 }
 
-import std.random: isPhobosUniformRNG = isUniformRNG;
+/++
+$(LINK2 https://dlang.org/phobos/std_random.html#.isUniformRNG,
+std.random.isUniformRNG!T)
++/
+template isPhobosUniformRNG(T)
+{
+    import std.random: isUniformRNG;
+    enum bool isPhobosUniformRNG = isUniformRNG!T;
+}
 
 /++
 Extends a Mir-style random number generator to also meet
