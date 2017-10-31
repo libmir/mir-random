@@ -357,22 +357,27 @@ void main(string[] args)
         this(UInt state) { this.state = state; }
         UInt opCall() { return state++; }
     }
+
     foreach (IntType; AliasSeq!(ubyte,ushort,uint))
     {
         static if (IntType.sizeof <= ushort.sizeof)
             enum nbuckets = size_t(IntType.max - 1);
         else
             enum nbuckets = size_t(ushort.max - 1);
-        enum ulong numDistinctValues = (1UL << (IntType.sizeof * 8));
-        enum IntType expectedSizeRoundDown = IntType(numDistinctValues / nbuckets);
-        enum IntType remainder = IntType(numDistinctValues % nbuckets);
 
         IntType[] buckets = new IntType[nbuckets];
         auto gen = Counter!IntType(0);
-        foreach (_; 0u .. numDistinctValues)
+        ulong numDistinctValues = 0;
+        do
+        {
             buckets[gen.randIndexV2!IntType(nbuckets)] += 1;
+            ++numDistinctValues;
+        } while (gen.state != 0);
+
+        immutable IntType expectedSizeRoundDown = cast(IntType) (numDistinctValues / nbuckets);
+        immutable IntType maxAllowedDifference = cast(IntType) ((numDistinctValues % nbuckets) == 0) ? 0 : 1;
         foreach (i, x; buckets)
-            if (x < expectedSizeRoundDown || x > expectedSizeRoundDown + remainder)
+            if (x < expectedSizeRoundDown || x > expectedSizeRoundDown + maxAllowedDifference)
                 assert(0);
         writeln("Uniformity check passed for randIndexV2!"~IntType.stringof);
     }
