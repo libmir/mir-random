@@ -296,14 +296,20 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
     @property TL!Engine threadLocal(Engine)()
         if (isSaturatedRandomEngine!Engine && is(Engine == struct) && !is(Engine: TL!(X), X))
     {
-        pragma(inline, true);
+        version (DigitalMars)
+            pragma(inline);//DMD fails to inline this.
+        else
+            pragma(inline, true);
         return TL!Engine(false);
     }
     /// ditto
     @property TL!Engine2 threadLocal(Engine: TL!(Engine2), Engine2)()
         if (isSaturatedRandomEngine!Engine && is(Engine == struct) && is(Engine: TL!(Engine2), Engine2))
     {
-        pragma(inline, true);
+        version (DigitalMars)
+            pragma(inline);//DMD fails to inline this.
+        else
+            pragma(inline, true);
         return TL!Engine2(false);
     }
     /// ditto
