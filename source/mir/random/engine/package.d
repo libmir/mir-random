@@ -280,165 +280,80 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
 
         auto c = complex(rne.rand!real, rne.rand!real);
 
-        //If you are going use rne several times in a row,
-        //it's more efficient to retain rne like this:
-        auto rng = rne;
         int[10] array;
         foreach (ref e; array)
-            e = rng.rand!int;
-        auto picked = array[rng.randIndex(array.length)];
+            e = rne.rand!int;
+        auto picked = array[rne.randIndex(array.length)];
     }
 
+    private static struct TL(Engine)
+        if (isSaturatedRandomEngine!Engine && is(Engine == struct))
+    {
+        static bool initialized;
+        static if (__traits(compiles, { Engine defaultConstructed; }))
+            static Engine engine;
+        else
+            static Engine engine = Engine.init;
+    }
     /++
     Thread-local instance of the specified random number generator allocated and seeded uniquely
     for each thread. Requires $(LINK2 https://en.wikipedia.org/wiki/Thread-local_storage, TLS).
+
+    `threadLocalPtr!Engine` is a pointer to the area of thread-local
+    storage used by `threadLocal!Engine`. This function is provided because
+    the compiler can infer it is `@safe`, unlike `&(threadLocal!Engine)`.
+    Like `threadLocal!Engine` this function will auto-initialize the engine.
+
+    `threadLocalInitialized!Engine` is a low-level way to explicitly change
+    the "intialized" flag used by `threadLocal!Engine` to determine whether
+    the Engine needs to be seeded. Setting this to `false` gives a way of
+    forcing the next call to `threadLocal!Engine` to reseed. In general this
+    is unnecessary but there are some specialized use cases where users have
+    requested this ability.
     +/
-    @property TL!Engine threadLocal(Engine)()
-        if (isSaturatedRandomEngine!Engine && is(Engine == struct) && !is(Engine: TL!(X), X))
+    @property ref Engine threadLocal(Engine)()
+        if (isSaturatedRandomEngine!Engine && is(Engine == struct))
     {
         version (DigitalMars)
-            pragma(inline);//DMD fails to inline this.
+            pragma(inline);//DMD may fail to inline this.
         else
             pragma(inline, true);
-        return TL!Engine(false);
+        return *threadLocalPtr!Engine;
     }
     /// ditto
-    @property TL!Engine2 threadLocal(Engine: TL!(Engine2), Engine2)()
-        if (isSaturatedRandomEngine!Engine && is(Engine == struct) && is(Engine: TL!(Engine2), Engine2))
+    @property Engine* threadLocalPtr(Engine)()
+        if (isSaturatedRandomEngine!Engine && is(Engine == struct))
     {
         version (DigitalMars)
-            pragma(inline);//DMD fails to inline this.
+            pragma(inline);//DMD may fail to inline this.
         else
             pragma(inline, true);
-        return TL!Engine2(false);
+        import mir.ndslice.internal: _expect;
+        if (_expect(!TL!Engine.initialized, false))
+        {
+            static if (is(typeof((ulong t) => Engine(t))))
+                alias seed_t = ulong;
+            else static if (is(typeof((uint t) => Engine(t))))
+                alias seed_t = uint;
+            else
+                alias seed_t = EngineReturnType!Engine;
+            static if (seed_t.sizeof <= uint.sizeof)
+                seed_t seed = cast(seed_t) unpredictableSeedOf!uint;
+            else
+                seed_t seed = unpredictableSeedOf!seed_t;
+            TL!Engine.engine.__ctor(seed);
+        }
+        return &(TL!Engine.engine);
     }
     /// ditto
-    struct TL(Engine)
-        if (isSaturatedRandomEngine!Engine && is(Engine == struct)
-            && !(__traits(compiles,
-                    {
-                        static assert(isSaturatedRandomEngine!(typeof(Engine._e))
-                            && isSaturatedRandomEngine!(typeof(Engine.engine))
-                            && is(typeof(Engine._i) == bool)
-                            && is(typeof(Engine.terminatedSafely) == bool));
-                    })))
+    @property ref bool threadLocalInitialized(Engine)()
+        if (isSaturatedRandomEngine!Engine && is(Engine == struct))
     {
-        static bool _i;//Tracks whether exited safely most recently.
-        static if (__traits(compiles, { Engine defaultConstructed; }))
-            static Engine _e;
+        version (DigitalMars)
+            pragma(inline);//DMD may fail to inline this.
         else
-            static Engine _e = Engine.init;
-
-        //Should these be disabled?
-        @disable this();
-        @disable this(this);
-
-        ///
-        public alias terminatedSafely = _i;
-        ///
-        public alias engine = _e;
-
-        private this()(bool _)
-        {
-            import mir.ndslice.internal: _expect;
-            //First initialize if needed:
-            if (_expect(!terminatedSafely, false))
-            {
-                static if (is(typeof((ulong t) => Engine(t))))
-                    alias seed_t = ulong;
-                else static if (is(typeof((uint t) => Engine(t))))
-                    alias seed_t = uint;
-                else
-                    alias seed_t = EngineReturnType!Engine;
-                static if (seed_t.sizeof <= uint.sizeof)
-                    seed_t seed = cast(seed_t) unpredictableSeedOf!uint;
-                else
-                    seed_t seed = unpredictableSeedOf!seed_t;
-                engine.__ctor(seed);
-            }
-            //Then set this in case we don't exit as expected:
-            terminatedSafely = false;
-        }
-
-        ~this() @nogc nothrow @safe
-        {
-            terminatedSafely = true;
-        }
-
-        /// Advance the random sequence.
-        EngineReturnType!Engine opCall()() { return engine.opCall(); }
-        ///
-        enum EngineReturnType!Engine max = Engine.max;
-        ///
-        enum bool isRandomEngine = true;
-        ///
-        enum bool preferHighBits = .preferHighBits!Engine;
-
-        //Document when the wrapper design is closer to final.
-        static if (__traits(compiles, { enum bool e = Engine.isUniformRandom; static assert(Engine.isUniformRandom);})
-            && is(Unqual!(EngineReturnType!Engine) == Unqual!(ReturnType!((ref Engine e) => e.front))))
-        {
-            /// If the original type had phobos compatibility, maintain it.
-            enum bool isUniformRandom = Engine.isUniformRandom;
-            enum EngineReturnType!Engine min = Engine.min;
-            enum bool empty = Engine.empty;
-        }
-
-        // Defines so can still be used when not LVALUE.
-        @property T rand(T)()
-            if (isIntegral!T || is(T == enum) || is(T == bool) || (isFloatingPoint!T))
-        {
-            return mir.random.rand!(T,Engine)(engine);
-        }
-        // ditto
-        @property T rand(T)(sizediff_t boundExp)
-            if (isFloatingPoint!T)
-        {
-            return mir.random.rand!(T,Engine)(engine, boundExp);
-        }
-        // ditto
-        @property T randIndex(T)(T m)
-            if (isUnsigned!T)
-        {
-            static import mir.random;
-            return mir.random.randIndex!(T,Engine)(engine, m);
-        }
-        // ditto
-        @property T randGeometric(T)(T m)
-            if (isUnsigned!T)
-        {
-            static import mir.random;
-            return mir.random.randGeometric!(T,Engine)(engine, m);
-        }
-        // ditto
-        @property T randExponential(T)(T m)
-            if (isUnsigned!T)
-        {
-            static import mir.random;
-            return mir.random.randExponential!(T,Engine)(engine, m);
-        }
-
-        /// Pointer to the thread-local copy of the engine.
-        @property Engine* ptr() @nogc nothrow @safe
-        {
-            return &engine;
-        }
-
-        ///
-        alias engine this;
-    }
-    /// ditto
-    template TL(Engine)
-        if (isSaturatedRandomEngine!Engine && is(Engine == struct)
-            && (__traits(compiles,
-                    {
-                        static assert(isSaturatedRandomEngine!(typeof(Engine._e))
-                            && isSaturatedRandomEngine!(typeof(Engine.engine))
-                            && is(typeof(Engine._i) == bool)
-                            && is(typeof(Engine.terminatedSafely) == bool));
-                    })))
-    {
-        alias TL = .TL!(typeof(Engine._e));
+            pragma(inline, true);
+        return TL!Engine.initialized;
     }
     ///
     @nogc nothrow @safe version(mir_random_test) unittest
@@ -446,48 +361,46 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
         import mir.random;
         import mir.random.engine.xorshift;
 
-        auto gen = threadLocal!Xorshift1024StarPhi;
+        alias gen = threadLocal!Xorshift1024StarPhi;
         double x = gen.rand!double;
         size_t i = gen.randIndex(100u);
-        ulong a = gen();
+        ulong a = gen.rand!ulong;
     }
     ///
     @nogc nothrow @safe version(mir_random_test) unittest
     {
         import mir.random;
-        //If you need a pointer to the engine, getting it is @safe:
-        Random* ptr = threadLocal!Random.ptr;
+        //If you need a pointer to the engine, getting it like this is @safe:
+        Random* ptr = threadLocalPtr!Random;
     }
-//    ///
-//    @nogc nothrow @system version(mir_random_test) unittest
-//    {
-//        //Returns same instance every time per thread.
-//        import mir.random;
-//        import mir.random.engine.xorshift;
-//
-//        Xorshift1024StarPhi* addr = &(threadLocal!Xorshift1024StarPhi());
-//        Xorshift1024StarPhi* sameAddr = &(threadLocal!Xorshift1024StarPhi());
-//        assert(sameAddr is &_rawThreadLocal!Xorshift1024StarPhi);
-//    }
-//    ///
-//    @nogc nothrow @safe version(mir_random_test) unittest
-//    {
-//        import mir.random;
-//        import mir.random.engine.xorshift;
-//
-//        alias gen = threadLocal!Xorshift1024StarPhi;
-//
-//        //If you want to you can call the generator's opCall instead of using
-//        //rand!T but it is somewhat clunky because of the ambiguity of
-//        //@property syntax: () looks like optional function parentheses.
-//        static assert(!__traits(compiles, {ulong x0 = gen();}));//<-- Won't work
-//        static assert(is(typeof(gen()) == Xorshift1024StarPhi));//<-- because the type is this.
-//        ulong x1 = gen.opCall();//<-- This works though.
-//        ulong x2 = gen()();//<-- This also works.
-//
-//        //But instead of any of those you should really just use gen.rand!T.
-//        ulong x3 = gen.rand!ulong;
-//    }
+    ///
+    @nogc nothrow @safe version(mir_random_test) unittest
+    {
+        import mir.random;
+        import mir.random.engine.xorshift;
+        //If you need to mark the engine as uninitialized to force a reseed,
+        //you can do it like this:
+        threadLocalInitialized!Xorshift1024StarPhi = false;
+    }
+    ///
+    @nogc nothrow @safe version(mir_random_test) unittest
+    {
+        import mir.random;
+        import mir.random.engine.xorshift;
+
+        alias gen = threadLocal!Xorshift1024StarPhi;
+
+        //If you want to you can call the generator's opCall instead of using
+        //rand!T but it is somewhat clunky because of the ambiguity of
+        //@property syntax: () looks like optional function parentheses.
+        static assert(!__traits(compiles, {ulong x0 = gen();}));//<-- Won't work
+        static assert(is(typeof(gen()) == Xorshift1024StarPhi));//<-- because the type is this.
+        ulong x1 = gen.opCall();//<-- This works though.
+        ulong x2 = gen()();//<-- This also works.
+
+        //But instead of any of those you should really just use gen.rand!T.
+        ulong x3 = gen.rand!ulong;
+    }
 //    ///
 //    @nogc nothrow pure @safe version(mir_random_test) unittest
 //    {
@@ -496,28 +409,16 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
 //        alias rndGen = threadLocal!Random;
 //    }
 
-    @nogc nothrow @safe version (mir_random_test) unittest
+    @nogc nothrow @system version(mir_random_test) unittest
     {
-        //Test that we avoid pointless layers of recursion.
-        alias TLTL = TL!(TL!Random);
-        static assert(is(TLTL == TL!Random));
-
-        //Test that we preserve properties.
+        //Verify Returns same instance every time per thread.
         import mir.random;
         import mir.random.engine.xorshift;
-        alias TLX = TL!Xoroshiro128Plus;
-        static assert(isSaturatedRandomEngine!TLX);
-        static assert(isPhobosUniformRNG!TLX);
 
-        //Test some stuff works when not an LVALUE.
-        import mir.random.algorithm;
-        uint[10] array;
-        foreach (i, ref e; array)
-            e = rne.rand!uint;
-        static assert(
-            //FIXME: get the first to work with non-LVALUE rne using opDispatch, alias this, or something.
-            is(typeof(() => rne.shuffle(array[])))
-            || is(typeof(() => rne.engine.shuffle(array[]))));
+        Xorshift1024StarPhi* addr = &(threadLocal!Xorshift1024StarPhi());
+        Xorshift1024StarPhi* sameAddr = &(threadLocal!Xorshift1024StarPhi());
+        assert(addr is sameAddr);
+        assert(sameAddr is threadLocalPtr!Xorshift1024StarPhi);
     }
 
 }
@@ -525,7 +426,7 @@ else
 {
     static assert(!THREAD_LOCAL_STORAGE_AVAILABLE);
 
-    @property Random rne()()
+    @property ref Random rne()()
     {
         static assert(0, "Thread-local storage not available!");
     }
@@ -535,7 +436,12 @@ else
         static assert(0, "Thread-local storage not available!");
     }
 
-    template _rawThreadLocal(T)
+    template threadLocalPtr(T)
+    {
+        static assert(0, "Thread-local storage not available!");
+    }
+
+    template threadLocalInitialized(T)
     {
         static assert(0, "Thread-local storage not available!");
     }
