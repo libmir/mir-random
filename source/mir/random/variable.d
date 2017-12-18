@@ -111,10 +111,16 @@ struct UniformVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         return length ? gen.randIndex!U(length) + location : gen.rand!U;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -132,6 +138,16 @@ struct UniformVariable(T)
     assert(rv.min == -10);
     assert(rv.max == 10);
 }
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = UniformVariable!int(-10, 10); // [-10, 10]
+    auto x = rv(gen); // random variable
+    assert(rv.min == -10);
+    assert(rv.max == 10);
+}
+
 
 /++
 $(HTTP en.wikipedia.org/wiki/Uniform_distribution_(continuous), Uniform distribution (continuous)).
@@ -159,13 +175,19 @@ struct UniformVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         auto ret =  gen.rand!T.fabs.fmuladd(_b - _a, _a);
         if(ret < _b)
             return ret;
         return max;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -197,6 +219,16 @@ struct UniformVariable(T)
     }
 }
 
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    import std.math : nextDown;
+    Random* gen = threadLocalPtr!Random;
+    auto rv = UniformVariable!double(-8, 10); // [-8, 10)
+    auto x = rv(gen); // random variable
+    assert(rv.min == -8.0);
+    assert(rv.max == 10.0.nextDown);
+}
+
 /++
 $(WIKI_D Exponential).
 Returns: `X ~ Exp(β)`
@@ -216,10 +248,16 @@ struct ExponentialVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         return gen.randExponential2!T * scale;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -232,6 +270,13 @@ struct ExponentialVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = ExponentialVariable!double(1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = ExponentialVariable!double(1);
     auto x = rv(gen);
 }
@@ -256,10 +301,16 @@ struct WeibullVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         return ExponentialVariable!T()(gen).pow(_pow) * scale;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -272,6 +323,13 @@ struct WeibullVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = WeibullVariable!double(3, 2);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = WeibullVariable!double(3, 2);
     auto x = rv(gen);
 }
@@ -304,7 +362,7 @@ struct GammaVariable(T, bool Exp = false)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         T x = void;
@@ -366,6 +424,12 @@ struct GammaVariable(T, bool Exp = false)
         else
             return x * scale;
     }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
+    }
 
     ///
     enum T min = Exp ? -T.infinity : 0;
@@ -377,6 +441,13 @@ struct GammaVariable(T, bool Exp = false)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = GammaVariable!double(1, 1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = GammaVariable!double(1, 1);
     auto x = rv(gen);
 }
@@ -402,7 +473,7 @@ struct BetaVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         if (a <= 1 && b <= 1) for (;;)
@@ -431,6 +502,12 @@ struct BetaVariable(T)
         T z = x + y;
         return x / z;
     }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
+    }
 
     ///
     enum T min = 0;
@@ -442,6 +519,13 @@ struct BetaVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = BetaVariable!double(2, 5);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = BetaVariable!double(2, 5);
     auto x = rv(gen);
 }
@@ -464,10 +548,16 @@ struct ChiSquaredVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         return GammaVariable!T(_shape, 2)(gen);
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -480,6 +570,13 @@ struct ChiSquaredVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = ChiSquaredVariable!double(3);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = ChiSquaredVariable!double(3);
     auto x = rv(gen);
 }
@@ -503,7 +600,7 @@ struct FisherFVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         auto xv = GammaVariable!T(_d1 * 0.5f);
@@ -513,6 +610,12 @@ struct FisherFVariable(T)
         x *= _d1;
         y *= _d2;
         return x / y;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -525,6 +628,13 @@ struct FisherFVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = FisherFVariable!double(3, 4);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = FisherFVariable!double(3, 4);
     auto x = rv(gen);
 }
@@ -548,7 +658,7 @@ struct StudentTVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         auto x = _nv(gen);
@@ -556,6 +666,12 @@ struct StudentTVariable(T)
         if(y < T.infinity)
             x *= y.sqrt;
         return x;
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -568,6 +684,13 @@ struct StudentTVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = StudentTVariable!double(10);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = StudentTVariable!double(10);
     auto x = rv(gen);
 }
@@ -644,7 +767,7 @@ struct NormalVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         T x = void;
@@ -672,6 +795,12 @@ struct NormalVariable(T)
         }
         return fmuladd(x, scale, location);
     }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
+    }
 
     ///
     enum T min = -T.infinity;
@@ -683,6 +812,13 @@ struct NormalVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = NormalVariable!double(0, 1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = NormalVariable!double(0, 1);
     auto x = rv(gen);
 }
@@ -709,10 +845,16 @@ struct LogNormalVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
        return _nv(gen);
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -725,6 +867,13 @@ struct LogNormalVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = LogNormalVariable!double(0, 1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = LogNormalVariable!double(0, 1);
     auto x = rv(gen);
 }
@@ -750,7 +899,7 @@ struct CauchyVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         T u = void;
@@ -764,6 +913,12 @@ struct CauchyVariable(T)
         while (sumSquares(u, v) > 1 || !(fabs(x = u / v) < T.infinity));
         return fmuladd(x, scale, location);
     }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
+    }
 
     ///
     enum T min = -T.infinity;
@@ -775,6 +930,13 @@ struct CauchyVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = CauchyVariable!double(0, 1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = CauchyVariable!double(0, 1);
     auto x = rv(gen);
 }
@@ -799,10 +961,16 @@ struct ExtremeValueVariable(T)
     }
 
     ///
-    T opCall(G)(ref G gen)
+    T opCall(G)(scope ref G gen)
         if (isSaturatedRandomEngine!G)
     {
         return fmuladd(log2(gen.randExponential2!T * T(LN2)), scale, location);
+    }
+    /// ditto
+    T opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
     }
 
     ///
@@ -815,6 +983,13 @@ struct ExtremeValueVariable(T)
 @nogc nothrow @safe version(mir_random_test) unittest
 {
     auto gen = Random(unpredictableSeed);
+    auto rv = ExtremeValueVariable!double(0, 1);
+    auto x = rv(gen);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
     auto rv = ExtremeValueVariable!double(0, 1);
     auto x = rv(gen);
 }
@@ -841,10 +1016,16 @@ struct BernoulliVariable(T)
     }
 
     ///
-    bool opCall(RNG)(ref RNG gen)
+    bool opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         return gen.rand!T.fabs < p;
+    }
+    /// ditto
+    bool opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -865,6 +1046,15 @@ struct BernoulliVariable(T)
     //writeln(hist);
 }
 
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = BernoulliVariable!double(0.7);
+    int[2] hist;
+    foreach(_; 0..10)
+        hist[rv(gen)]++;
+}
+
 /++
 $(WIKI_D Bernoulli). A fast specialization for `p := 1/2`.
 +/
@@ -881,7 +1071,7 @@ struct Bernoulli2Variable
     }
 
     ///
-    bool opCall(RNG)(ref RNG gen)
+    bool opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         if(mask == 0)
@@ -892,6 +1082,12 @@ struct Bernoulli2Variable
         bool ret = (payload & mask) != 0;
         mask >>>= 1;
         return ret;
+    }
+    /// ditto
+    bool opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -910,6 +1106,15 @@ struct Bernoulli2Variable
         hist[rv(gen)]++;
     //import std.stdio;
     //writeln(hist);
+}
+
+@nogc nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = Bernoulli2Variable.init;
+    int[2] hist;
+    foreach(_; 0..10)
+        hist[rv(gen)]++;
 }
 
 /++
@@ -935,11 +1140,17 @@ struct GeometricVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         auto ret = gen.randExponential2!T * scale;
         return ret < ulong.max ? cast(ulong)ret : ulong.max;
+    }
+    /// ditto
+    ulong opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -963,6 +1174,15 @@ nothrow @safe version(mir_random_test) unittest
     //    else
     //        write("0, ");
     //writeln();
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = GeometricVariable!double(0.1);
+    size_t[ulong] hist;
+    foreach(_; 0..10)
+        hist[rv(gen)]++;
 }
 
 private T _mLogFactorial(T)(ulong k)
@@ -1018,7 +1238,7 @@ struct PoissonVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         import core.stdc.tgmath: lgamma;
@@ -1047,6 +1267,12 @@ struct PoissonVariable(T)
                 return x;
         }
     }
+    /// ditto
+    ulong opCall(G)(scope G* gen)
+        if (isSaturatedRandomEngine!G)
+    {
+        return opCall!(G)(*gen);
+    }
 
     ///
     enum ulong min = 0;
@@ -1070,6 +1296,15 @@ nothrow @safe version(mir_random_test) unittest
     //    else
     //        write("0, ");
     //writeln();
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = PoissonVariable!double(10);
+    size_t[ulong] hist;
+    foreach(_; 0..10)
+        hist[rv(gen)]++;
 }
 
 /++
@@ -1096,7 +1331,7 @@ struct NegativeBinomialVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         if (r <= 21 * p)
@@ -1108,6 +1343,12 @@ struct NegativeBinomialVariable(T)
             return f;
         }
         return PoissonVariable!T(GammaVariable!T(r, (1 - p) / p)(gen))(gen);
+    }
+    /// ditto
+    ulong opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -1132,6 +1373,15 @@ nothrow @safe version(mir_random_test) unittest
     //    else
     //        write("0, ");
     //writeln();
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = NegativeBinomialVariable!double(30, 0.3);
+    size_t[ulong] hist;
+    foreach(_; 0..10)
+        hist[rv(gen)]++;
 }
 
 /++
@@ -1203,7 +1453,7 @@ struct BinomialVariable(T)
     }
 
     ///
-    size_t opCall(RNG)(ref RNG gen)
+    size_t opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         T kr = void;
@@ -1244,6 +1494,12 @@ struct BinomialVariable(T)
         auto ret = cast(typeof(return)) kr;
         return swap ? n - ret : ret;
     }
+    ///
+    size_t opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
+    }
 
     ///
     enum size_t min = 0;
@@ -1264,6 +1520,16 @@ nothrow @safe version(mir_random_test) unittest
     //import std.stdio;
     //foreach(n, e; hist)
     //    writefln("p(x = %s) = %s", n, double(e) / cnt);
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = BinomialVariable!double(20, 0.5);
+    int[] hist = new int[rv.max + 1];
+    auto cnt = 10;
+    foreach(_; 0..cnt)
+        hist[rv(gen)]++;
 }
 
 /++
@@ -1318,7 +1584,7 @@ struct DiscreteVariable(T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    size_t opCall(RNG)(ref RNG gen)
+    size_t opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         import std.range : assumeSorted;
@@ -1327,6 +1593,12 @@ struct DiscreteVariable(T)
         else
             T v = gen.randIndex!(Unsigned!T)(cdf[$-1]);
         return cdf.length - cdf.assumeSorted!"a < b".upperBound(v).length;
+    }
+    /// ditto
+    size_t opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -1442,6 +1714,20 @@ nothrow @safe version(mir_random_test) unittest
     assert(obs[3] == 0);
 }
 
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto cumulative = [10.0, 30, 40, 90, 120];
+    auto ds = DiscreteVariable!double(cumulative, true);
+
+    assert(cumulative == [10.0, 30, 40, 90, 120]);
+
+    // sample from the discrete distribution
+    auto obs = new uint[cumulative.length];
+    foreach (i; 0..1000)
+        obs[ds(gen)]++;
+}
+
 /++
 Piecewise constant variable.
 +/
@@ -1474,11 +1760,17 @@ struct PiecewiseConstantVariable(T, W = T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    T opCall(RNG)(ref RNG gen)
+    T opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         size_t index = dv(gen);
         return UniformVariable!T(intervals[index], intervals[index + 1])(gen);
+    }
+    /// ditto
+    T opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -1517,6 +1809,21 @@ nothrow @safe version(mir_random_test) unittest
     13 *********
     14 **********
     +/
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    // 50% of the time, generate a random number between 0 and 1
+    // 50% of the time, generate a random number between 10 and 15
+    double[] i = [0,  1, 10, 15];
+    double[] w =   [1,  0,  1];
+    auto pcv = PiecewiseConstantVariable!(double, double)(i, w);
+    assert(w == [1, 1, 2]);
+
+    int[int] hist;
+    foreach(_; 0 .. 10)
+        ++hist[cast(int)pcv(gen)];
 }
 
 /++
@@ -1560,7 +1867,7 @@ struct PiecewiseLinearVariable(T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    T opCall(RNG)(ref RNG gen)
+    T opCall(RNG)(scope ref RNG gen)
         if (isSaturatedRandomEngine!RNG)
     {
         size_t index = dv(gen);
@@ -1580,6 +1887,12 @@ struct PiecewiseLinearVariable(T)
         if(!(ret < b1))
             ret = b1.nextDown;
         return ret;
+    }
+    /// ditto
+    T opCall(RNG)(scope RNG* gen)
+        if (isSaturatedRandomEngine!RNG)
+    {
+        return opCall!(RNG)(*gen);
     }
 
     ///
@@ -1627,4 +1940,19 @@ nothrow @safe version(mir_random_test) unittest
     13 **
     14 *
     +/
+}
+
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    // increase the probability from 0 to 5
+    // remain flat from 5 to 10
+    // decrease from 10 to 15 at the same rate
+    double[] i = [0, 5, 10, 15];
+    double[] w = [0, 1,  1,  0];
+    auto pcv = PiecewiseLinearVariable!double(i, w, new double[w.length - 1]);
+
+    int[int] hist;
+    foreach(_; 0 .. 10)
+        ++hist[cast(int)pcv(gen)];
 }
