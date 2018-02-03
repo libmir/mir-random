@@ -14,27 +14,20 @@ Professional Random Number Generators
 Documentation: http://docs.random.dlang.io/latest/index.html
 
 ```d
-#!/usr/bin/env dub
-/+ dub.json:
-{
-    "name": "test_random",
-    "dependencies": {"mir-random": "~>0.3.1"}
-}
+/+dub.sdl:
+dependency "mir-random" version="~>0.3.2"
 +/
-
-import std.range, std.stdio;
-
-import mir.random;
+import mir.random: rne;
 import mir.random.variable: NormalVariable;
 import mir.random.algorithm: range;
 
+import std.range: array, take;
+import std.stdio;
 
 void main(){
-    auto rng = Random(unpredictableSeed);        // Engines are allocated on stack or global
-    auto sample = range!rng                      // Engines can passed by alias to algorithms
-        (NormalVariable!double(0, 1))            // Random variables are passed by value
-        .take(1000)                              // Fix sample length to 1000 elements (Input Range API)
-        .array;                                  // Allocates memory and performs computation
+    auto sample_size = 10;
+    auto rvar = NormalVariable!double(0, 1); // Random Variable: ~N(0, 1)
+    auto sample = range!rne(rvar).take(sample_size).array;
 
     writeln(sample);
 }
