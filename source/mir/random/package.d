@@ -876,20 +876,3 @@ template PhobosRandom(Engine) if (isRandomEngine!Engine && isPhobosUniformRNG!En
     rng.seed(1);
     assert(gen() == rng());
 }
-
-
-import std.range, std.stdio;
-
-import mir.random.variable: NormalVariable;
-import mir.random.algorithm: range;
-
-unittest
-{
-    auto rng = Random(unpredictableSeed);        // Engines are allocated on stack or global
-    auto sample = range!rng                      // Engines can passed to algorithms by alias or by pointer
-        (NormalVariable!double(0, 1))            // Random variables are passed by value
-        .take(10)                                // Fix sample length to 10 elements (Input Range API)
-        .array;                                  // Allocates memory and performs computation
-
-    sample[$.randIndex].writeln;
-}
