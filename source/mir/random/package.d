@@ -410,9 +410,10 @@ Params:
 Returns:
     Uniformly distributed integer for interval `[0 .. m$(RPAREN)`.
 +/
-T randIndex(T, G)(scope ref G gen, T m)
+T randIndex(T, G)(scope ref G gen, T _m)
     if(isSaturatedRandomEngine!G && isUnsigned!T)
 {
+    immutable m = _m + 0u;
     static if (EngineReturnType!G.sizeof >= T.sizeof * 2)
         alias MaybeR = EngineReturnType!G;
     else static if (uint.sizeof >= T.sizeof * 2)
