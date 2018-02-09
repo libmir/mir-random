@@ -450,7 +450,8 @@ T rand(T)(sizediff_t boundExp = 0)
     assert(-double.min_normal < x && x < double.min_normal);
 }
 
-@nogc nothrow @safe version(mir_random_test) unittest
+//@nogc nothrow @safe version(mir_random_test)
+    unittest
 {
     //Coverage. Impure because uses thread-local.
     import mir.math.common: fabs;
@@ -469,7 +470,8 @@ T rand(T)(sizediff_t boundExp = 0)
     assert(0.0L <= d && d < 1.0L);
 
     auto x = gen.rand!double(double.min_exp-1);
-    assert(-double.min_normal < x && x < double.min_normal);
+        import std.conv;
+    assert(-double.min_normal < x && x < double.min_normal, x.to!string);
 }
 
 /++
