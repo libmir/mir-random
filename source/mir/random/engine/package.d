@@ -240,6 +240,7 @@ pragma(inline, true)
 @property T unpredictableSeedOf(T)() @trusted nothrow @nogc
     if (isUnsigned!T)
 {
+    import mir.ndslice.internal: _expect;
     T seed = void;
     version (GOOD_ARC4RANDOM_BUF)
     {
@@ -250,7 +251,7 @@ pragma(inline, true)
         else
             arc4random_buf(&seed, seed.sizeof);
     }
-    else if (genRandomNonBlocking(&seed, seed.sizeof) != T.sizeof)
+    else if (_expect(genRandomNonBlocking(&seed, seed.sizeof) != T.sizeof, false))
     {
         // fallback to old time/thread-based implementation in case of errors
         seed = cast(T) fallbackSeed();
