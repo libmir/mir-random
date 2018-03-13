@@ -15,7 +15,7 @@ $(BOOKTABLE $(H2 Generic Templates)
 
     $(TR $(TH Template name) $(TH Description))
     $(RROW XorshiftStarEngine, `xorshift*` generator with any word size and any number of bits of state.)
-    $(RROW XorshiftEngine, `xorshift` generator with 32 bit words and 32 to 160 bits of state.)
+    $(RROW XorshiftEngine, `xorshift` generator with any word size and any number of bits of state.)
 )
 
 Copyright: Copyright Andrei Alexandrescu 2008 - 2009, Masahiro Nakagawa, Ilya Yaroshenko 2016-.
@@ -33,149 +33,222 @@ module mir.random.engine.xorshift;
 import std.traits;
 
 /++
-Xorshift generator using 32bit algorithm.
+Xorshift generator.
 Implemented according to $(HTTP www.jstatsoft.org/v08/i14/paper, Xorshift RNGs)
-(Marsaglia, 2003).
-$(BOOKTABLE $(TEXTWITHCOMMAS Supporting bits are below, $(D bits) means second parameter of XorshiftEngine.),
- $(TR $(TH bits) $(TH period))
- $(TR $(TD 32)   $(TD 2^32 - 1))
- $(TR $(TD 64)   $(TD 2^64 - 1))
- $(TR $(TD 96)   $(TD 2^96 - 1))
- $(TR $(TD 128)  $(TD 2^128 - 1))
- $(TR $(TD 160)  $(TD 2^160 - 1))
- $(TR $(TD 192)  $(TD 2^192 - 2^32))
-)
+(Marsaglia, 2003) with Sebastino Vigna's optimization for large arrays.
+
+Period is `2 ^^ bits - 1` except for a legacy 192-bit uint version (see
+note below).
+
+Params:
+    UIntType = Word size of this xorshift generator and the return type
+               of `opCall`.
+    bits = The number of bits of state of this generator. This must be
+           a positive multiple of the size in bits of UIntType. If
+           bits is large this struct may occupy slightly more memory
+           than this so it can use a circular counter instead of
+           shifting the entire array.
+    sa = The direction and magnitude of the 1st shift. Positive
+         means left, negative means right.
+    sb = The direction and magnitude of the 2nd shift. Positive
+         means left, negative means right.
+    sc = The direction and magnitude of the 3rd shift. Positive
+         means left, negative means right.
+
+Note:
+For historical compatibility when `bits == 192` and `UIntType` is `uint`
+a legacy hybrid PRNG is used consisting of a 160-bit xorshift combined
+with a 32-bit counter. This combined generator has period `2^^192 - 2^^32`.
 +/
-struct XorshiftEngine(uint bits, uint a, uint b, uint c)
-    if (isUnsigned!uint)
+struct XorshiftEngine(UIntType, uint bits, int sa, int sb, int sc)
+if (isUnsigned!UIntType)
 {
-    ///
+    static assert(bits > 0 && bits % (UIntType.sizeof * 8) == 0,
+        "bits must be an even multiple of "~UIntType.stringof
+        ~".sizeof * 8, not "~bits.stringof~".");
+
+    static assert(!((sa >= 0) == (sb >= 0) && (sa >= 0) >= (sc >= 0))
+        && (sa * sb * sc != 0),
+        "shifts cannot be zero and cannot all be in same direction: cannot be ["
+        ~sa.stringof~", "~sb.stringof~", "~sc.stringof~"].");
+
+    static assert(sa != sb && sb != sc,
+        "consecutive shifts with the same magnitude and direction would cancel!");
+
+    // Shift magnitudes.
+    private enum a = (sa < 0 ? -sa : sa);
+    private enum b = (sb < 0 ? -sb : sb);
+    private enum c = (sc < 0 ? -sc : sc);
+
+    // Shift expressions to mix in.
+    private enum shiftA(string expr) = `((`~expr~`) `~(sa > 0 ? `<< a)` : ` >>> a)`);
+    private enum shiftB(string expr) = `((`~expr~`) `~(sb > 0 ? `<< b)` : ` >>> b)`);
+    private enum shiftC(string expr) = `((`~expr~`) `~(sc > 0 ? `<< c)` : ` >>> c)`);
+
+    /// Marker for `mir.random.isRandomEngine`
     enum isRandomEngine = true;
+    /// Largest generated value.
+    enum UIntType max = UIntType.max;
 
-    static assert(bits == 32 || bits == 64 || bits == 96 || bits == 128 || bits == 160 || bits == 192,
-                  "Xorshift supports only 32, 64, 96, 128, 160 and 192 bit versions. "
-                  ~ bits.stringof ~ " is not supported.");
+    /*
+     * Marker indicating it's safe to construct from void
+     * (i.e. the constructor doesn't depend on the struct
+     * being in an initially valid state).
+     * Non-public because we don't want to commit to this
+     * design.
+     */
+    package enum bool _isVoidInitOkay = true;
 
-  private:
-
-    enum size = bits / 32;
-
-    static if (bits == 32)
-        uint[size] seeds_ = [2463534242];
-    else static if (bits == 64)
-        uint[size] seeds_ = [123456789, 362436069];
-    else static if (bits == 96)
-        uint[size] seeds_ = [123456789, 362436069, 521288629];
-    else static if (bits == 128)
-        uint[size] seeds_ = [123456789, 362436069, 521288629, 88675123];
-    else static if (bits == 160)
-        uint[size] seeds_ = [123456789, 362436069, 521288629, 88675123, 5783321];
-    else static if (bits == 192)
+    private
     {
-        uint[size] seeds_ = [123456789, 362436069, 521288629, 88675123, 5783321, 6615241];
-        uint       value_;
+        enum uint N = bits / (UIntType.sizeof * 8);
+        // Ugly legacy 192 bit uint hybrid counter/xorshift.
+        // Retained for backwards compatibility for now.
+        enum bool isLegacy192Bit = UIntType.sizeof == uint.sizeof && bits == 192;
+        enum bool usePointer = N > 3 && !isLegacy192Bit;
+        static if (usePointer)
+            uint p;
+        else
+            enum uint p = N - 1;
+        enum uint initialP = UIntType.sizeof <= uint.sizeof ? N - 1 : 0;
+        static if (isLegacy192Bit)
+            UIntType value_;
+        static if (N == 1)
+            union {
+                UIntType s0_;
+                UIntType[N] s;
+            }
+        else
+            UIntType[N] s = void;
     }
-    else
-    {
-        static assert(false, "Mir Error: Xorshift has no instantiation rule for "
-                             ~ bits.stringof ~ " bits.");
-    }
-
-
-  public:
 
     @disable this();
     @disable this(this);
 
-    /// Largest generated value.
-    enum uint max = uint.max;
-
     /**
      * Constructs a $(D XorshiftEngine) generator seeded with $(D_PARAM x0).
      */
-    this(uint x0) @safe pure nothrow @nogc
+    static if (UIntType.sizeof > uint.sizeof)
+    this()(UIntType x0) @nogc nothrow pure @safe
+    if (UIntType.sizeof > uint.sizeof) // Repeat condition so it appears in DDoc.
     {
-        // Initialization routine from MersenneTwisterEngine.
-        foreach (uint i, ref e; seeds_)
+        static if (usePointer)
+            p = initialP;
+        static if (UIntType.sizeof == ulong.sizeof)
         {
-            e = x0 = 1812433253U * (x0 ^ (x0 >> 30)) + i + 1;
+            //Seed using splitmix64 as recommended by Vigna.
+            //http://xoroshiro.di.unimi.it/splitmix64.c
+            foreach (ref e; s)
+            {
+                Unqual!UIntType z = (x0 += cast(Unqual!UIntType) 0x9e3779b97f4a7c15uL);
+                z = (z ^ (z >>> 30)) * cast(Unqual!UIntType) 0xbf58476d1ce4e5b9uL;
+                z = (z ^ (z >>> 27)) * cast(Unqual!UIntType) 0x94d049bb133111ebuL;
+                e = z ^ (z >>> 31);
+            }
+        }
+        else
+        {
+            //Seed using PCG variant with k bits of state and k bits of output.
+            import mir.random.engine.pcg : PermutedCongruentialEngine, rxs_m_xs_forward, stream_t;
+            alias RndElementType = Unsigned!(Unqual!UIntType);
+            alias RndEngine = PermutedCongruentialEngine!(rxs_m_xs_forward!(RndElementType,RndElementType),stream_t.oneseq,true);
+            static assert(is(ReturnType!((ref RndEngine a) => a()) == RndElementType));
+
+            auto rnd = RndEngine(cast(RndElementType) x0);
+            foreach (ref e; s)
+            {
+                e = cast(UIntType) rnd();
+            }
+        }
+        //If N > 1 the internal state cannot be all zeroes by construction.
+        //If N == 1 we need to check.
+        static if (N == 1)
+        {
+            if (s[0] == 0)
+                s[0] = cast(Unqual!UIntType) 3935559000370003845UL;
+        }
+    }
+    /// ditto
+    static if (UIntType.sizeof <= uint.sizeof)
+    this()(uint x0) @nogc nothrow pure @safe
+    if (UIntType.sizeof <= uint.sizeof) // Repeat condition so it appears in DDoc.
+    {
+        static if (usePointer)
+            p = initialP;
+        // Initialization routine from MersenneTwisterEngine.
+        foreach (uint i, ref e; s)
+        {
+            e = cast(UIntType) (x0 = 1812433253U * (x0 ^ (x0 >> 30)) + i + 1);
             if (e == 0)
-                e = i + 1;
+                e = cast(UIntType) (i + 1);
         }
         opCall();
     }
 
-    /**
-     * Advances the random sequence.
-     */
-    uint opCall() @safe pure nothrow @nogc
+    /// Advances the random sequence.
+    UIntType opCall() @nogc nothrow pure @safe
     {
-        uint temp;
-
-        static if (bits == 32)
+        static if (isLegacy192Bit)
         {
-            temp      = seeds_[0] ^ (seeds_[0] << a);
-            temp      = temp ^ (temp >> b);
-            seeds_[0] = temp ^ (temp << c);
-            return seeds_[$-1];
-        }
-        else static if (bits == 64)
-        {
-            temp      = seeds_[0] ^ (seeds_[0] << a);
-            seeds_[0] = seeds_[1];
-            seeds_[1] = seeds_[1] ^ (seeds_[1] >> c) ^ temp ^ (temp >> b);
-            return seeds_[$-1];
-        }
-        else static if (bits == 96)
-        {
-            temp      = seeds_[0] ^ (seeds_[0] << a);
-            seeds_[0] = seeds_[1];
-            seeds_[1] = seeds_[2];
-            seeds_[2] = seeds_[2] ^ (seeds_[2] >> c) ^ temp ^ (temp >> b);
-            return seeds_[$-1];
-        }
-        else static if (bits == 128)
-        {
-            temp      = seeds_[0] ^ (seeds_[0] << a);
-            seeds_[0] = seeds_[1];
-            seeds_[1] = seeds_[2];
-            seeds_[2] = seeds_[3];
-            seeds_[3] = seeds_[3] ^ (seeds_[3] >> c) ^ temp ^ (temp >> b);
-            return seeds_[$-1];
-        }
-        else static if (bits == 160)
-        {
-            temp      = seeds_[0] ^ (seeds_[0] << a);
-            seeds_[0] = seeds_[1];
-            seeds_[1] = seeds_[2];
-            seeds_[2] = seeds_[3];
-            seeds_[3] = seeds_[4];
-            seeds_[4] = seeds_[4] ^ (seeds_[4] >> c) ^ temp ^ (temp >> b);
-            return seeds_[$-1];
-        }
-        else static if (bits == 192)
-        {
-            temp      = seeds_[0] ^ (seeds_[0] >> a);
-            seeds_[0] = seeds_[1];
-            seeds_[1] = seeds_[2];
-            seeds_[2] = seeds_[3];
-            seeds_[3] = seeds_[4];
-            seeds_[4] = seeds_[4] ^ (seeds_[4] << c) ^ temp ^ (temp << b);
-            value_ = seeds_[4] + (seeds_[5] += 362437);
+            import mir.internal.utility: Iota;
+            auto x = s[0] ^ mixin(shiftA!`s[0]`);
+            foreach (i; Iota!(N - 1))
+                s[i] = s[i + 1];
+            s[N-2] = s[N-2] ^ mixin(shiftC!`s[N-2]`) ^ x ^ mixin(shiftB!`x`);
+            value_ = s[N-2] + (s[N-1] += 362437);
             return value_;
+        }
+        else static if (N == 1)
+        {
+            s0_ ^= mixin(shiftA!`s0_`);
+            s0_ ^= mixin(shiftB!`s0_`);
+            s0_ ^= mixin(shiftC!`s0_`);
+            return s0_;
+        }
+        else static if (N > 1 && !usePointer)
+        {
+            import mir.internal.utility: Iota;
+            auto x = s[0] ^ mixin(shiftA!`s[0]`);
+            foreach (i; Iota!(N - 1))
+                s[i] = s[i + 1];
+            s[N-1] = s[N-1] ^ mixin(shiftC!`s[N-1]`) ^ x ^ mixin(shiftB!`x`);
+            return s[N-1];
         }
         else
         {
-            static assert(false, "Mir Error: Xorshift has no popFront() update for "
-                                 ~ bits.stringof ~ " bits.");
+            const s_N_minus_1 = s[p];
+            static if ((N & (N - 1)) == 0)
+            {
+                p = (p + 1) & (N - 1);
+            }
+            else
+            {
+                if (++p >= N)
+                    p = 0;
+            }
+            auto x = s[p];
+            x ^= mixin(shiftA!`x`);
+            return s[p] = s_N_minus_1 ^ mixin(shiftC!`s_N_minus_1`) ^ x ^ mixin(shiftB!`x`);
         }
     }
 }
 
+// Keep this public so code using it still works, but don't include it
+// in the documentation.
+template XorshiftEngine(uint bits, uint a, uint b, uint c)
+{
+    // Assume uint and shift directions so the defaults will work.
+    static if (bits <= 32)
+        alias XorshiftEngine = .XorshiftEngine!(uint, bits, a, -b, c);//left, right, left
+    else static if (bits == 192)
+        alias XorshiftEngine = .XorshiftEngine!(uint, bits, -a, b, c);//right, left, left
+    else
+        alias XorshiftEngine = .XorshiftEngine!(uint, bits, a, -b, -c);//left, right, right
+}
 
 /++
 Define `XorshiftEngine` generators with well-chosen parameters. See each bits examples of "Xorshift RNGs".
-`Xorshift` is a `Xorshift128`'s alias because 128bits implementation is mostly used.
+`Xorshift` an alias of one of the generators in this module.
 +/
 alias Xorshift32  = XorshiftEngine!(32,  13, 17, 15) ;
 alias Xorshift64  = XorshiftEngine!(64,  10, 13, 10); /// ditto
