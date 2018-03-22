@@ -283,19 +283,74 @@ Marsaglia in his paper). They are an excellent choice for all
 non-cryptographic applications, as they are incredibly fast, have long
 periods and their output passes strong statistical test suites.
 </blockquote>
+
+Params:
+    StateUInt = Word size of this xorshift generator.
+    nbits = The number of bits of state of this generator. This must be
+            a positive multiple of the size in bits of UIntType. If
+            nbits is large this struct may occupy slightly more memory
+            than this so it can use a circular counter instead of
+            shifting the entire array.
+    sa = The direction and magnitude of the 1st shift. Positive
+              means left, negative means right.
+    sb = The direction and magnitude of the 2nd shift. Positive
+              means left, negative means right.
+    sc = The direction and magnitude of the 3rd shift. Positive
+              means left, negative means right.
+    multiplier = Output of the internal xorshift engine is multiplied
+                 by a constant to eliminate linear artifacts except
+                 in the low-order bits. This constant must be an odd
+                 number other than 1.
+    OutputUInt = Return type of `opCall`. By default same as StateUInt
+                 but can be set to a narrower unsigned type in which
+                 case the high bits of the multiplication result are
+                 returned.
+
+Note:
+If `sa`, `sb`, and `sc` are all positive (which if interpreted
+as same-direction shifts could not result in a full-period xorshift
+generator) the shift directions are instead implicitly
+right-left-right when `bits == UIntType.sizeof * 8` and in all
+other cases left-right-right. This maintains full compatibility
+with older versions of `XorshiftStarEngine` that took all shifts as
+unsigned magnitudes.
 +/
-struct XorshiftStarEngine(StateUInt, uint nbits, uint a, uint b, uint c, StateUInt multiplier, OutputUInt = StateUInt)
-if (isIntegral!StateUInt && isIntegral!OutputUInt
-    && StateUInt.sizeof >= OutputUInt.sizeof
-    && nbits >= (StateUInt.sizeof * 8) && nbits % (StateUInt.sizeof * 8) == 0)
+struct XorshiftStarEngine(StateUInt, uint nbits, int sa, int sb, int sc, StateUInt multiplier, OutputUInt = StateUInt)
+if (isUnsigned!StateUInt && isUnsigned!OutputUInt && OutputUInt.sizeof <= StateUInt.sizeof
+    && !(sa >0 && sb > 0 && sc > 0))
 {
-    ///
+    static assert(multiplier != 1 && multiplier % 2 != 0,
+        typeof(this).stringof~": multiplier must be an odd number other than 1!");
+
+    static assert(OutputUInt.sizeof <= StateUInt.sizeof,
+        typeof(this).stringof~": OutputUInt cannot be larger than StateUInt!");
+
+    static assert(nbits > 0 && nbits % (StateUInt.sizeof * 8) == 0,
+        "bits must be an even multiple of "~StateUInt.stringof
+        ~".sizeof * 8, not "~nbits.stringof~".");
+
+    static assert(!((sa >= 0) == (sb >= 0) && (sa >= 0) >= (sc >= 0))
+        && (sa * sb * sc != 0),
+        "shifts cannot be zero and cannot all be in same direction: cannot be ["
+        ~sa.stringof~", "~sb.stringof~", "~sc.stringof~"].");
+
+    static assert(sa != sb && sb != sc,
+        "consecutive shifts with the same magnitude and direction would cancel!");
+
+    // Shift magnitudes.
+    private enum a = (sa < 0 ? -sa : sa);
+    private enum b = (sb < 0 ? -sb : sb);
+    private enum c = (sc < 0 ? -sc : sc);
+
+    // Shift expressions to mix in.
+    private enum shiftA(string expr) = `((`~expr~`) `~(sa > 0 ? `<< a)` : ` >>> a)`);
+    private enum shiftB(string expr) = `((`~expr~`) `~(sb > 0 ? `<< b)` : ` >>> b)`);
+    private enum shiftC(string expr) = `((`~expr~`) `~(sc > 0 ? `<< c)` : ` >>> c)`);
+
+    /// Marker for `mir.random.isRandomEngine`
     enum isRandomEngine = true;
     /// Largest generated value.
     enum OutputUInt max = OutputUInt.max;
-
-    static assert(multiplier != 1 && multiplier % 2 != 0,
-        typeof(this).stringof~": multiplier must be an odd number other than 1!");
 
     /++
     Note that when StateUInt is the same size as OutputUInt the two lowest bits
@@ -326,6 +381,9 @@ if (isIntegral!StateUInt && isIntegral!OutputUInt
     StateUInt[N] s = void;
     static if (usePointer)
         uint p;
+    else
+        enum p = N - 1;
+    enum uint initialP = StateUInt.sizeof <= uint.sizeof ? N - 1 : 0;
 
   public:
 
@@ -335,7 +393,7 @@ if (isIntegral!StateUInt && isIntegral!OutputUInt
     /**
      * Constructs a $(D XorshiftStarEngine) generator seeded with $(D_PARAM x0).
      */
-    this()(Unqual!StateUInt x0) @safe pure nothrow @nogc
+    this()(StateUInt x0) @safe pure nothrow @nogc
     {
         static if (N == 1)
         {
@@ -383,52 +441,49 @@ if (isIntegral!StateUInt && isIntegral!OutputUInt
     {
         static if (N == 1)
         {
-            s[0] ^= s[0] >>> a;
-            s[0] ^= s[0] << b;
-            s[0] ^= s[0] >>> c;
+            auto x = s[0];
+            x ^= mixin(shiftA!`x`);
+            x ^= mixin(shiftB!`x`);
+            x ^= mixin(shiftC!`x`);
         }
-        else static if (!usePointer)
+        else static if (N > 1 && !usePointer)
         {
-            auto s1 = s[0];
             import mir.internal.utility: Iota;
+            auto x = s[0] ^ mixin(shiftA!`s[0]`);
             foreach (i; Iota!(N - 1))
                 s[i] = s[i + 1];
-            const s0 = s[N-1];
-            s1 ^= s1 << a;
-            s[N-1] = s1 ^ s0 ^ (s1 >>> b) ^ (s0 >>> c);
+            x = s[N-1] ^ mixin(shiftC!`s[N-1]`) ^ x ^ mixin(shiftB!`x`);
         }
         else
         {
-            const s0 = s[p];
+            const s_N_minus_1 = s[p];
             static if ((N & (N - 1)) == 0)
             {
                 p = (p + 1) & (N - 1);
             }
             else
             {
-                if (++p == N)
+                if (++p >= N)
                     p = 0;
             }
-            auto s1 = s[p];
-            s1 ^= s1 << a;
-            s[p] = s1 ^ s0 ^ (s1 >>> b) ^ (s0 >>> c);
+            auto x = s[p];
+            x ^= mixin(shiftA!`x`);
+            x = s_N_minus_1 ^ mixin(shiftC!`s_N_minus_1`) ^ x ^ mixin(shiftB!`x`);
         }
-
-        static if (!usePointer)
-            enum p = N - 1;
+        s[p] = x;
 
         static if (StateUInt.sizeof > OutputUInt.sizeof)
         {
             enum uint rshift = (StateUInt.sizeof - OutputUInt.sizeof) * 8;
-            return cast(OutputUInt) ((s[p] * multiplier) >>> rshift);
+            return cast(OutputUInt) ((x * multiplier) >>> rshift);
         }
         else
         {
-            return cast(OutputUInt) (s[p] * multiplier);
+            return cast(OutputUInt) (x * multiplier);
         }
     }
 
-    static if (nbits == 1024 && N == 16 && a == 31 && b == 11 && c == 30)
+    static if (nbits == 1024 && N == 16 && sa == 31 && sb == -11 && sc == -30)
     {
         /**
          * This is the jump function for the standard 1024-bit generator.
@@ -438,6 +493,7 @@ if (isIntegral!StateUInt && isIntegral!OutputUInt
          * defined if the shifts are the same as for $(D Xorshift1024StarPhi).
          */
         void jump()() @safe pure nothrow @nogc
+        if (nbits == 1024 && N == 16 && sa == 31 && sb == -11 && sc == -30)
         {
             static immutable ulong[16] JUMP = [0x84242f96eca9c41duL,
                 0xa3c65b8776f96855uL, 0x5b34a39f070b5837uL, 0x4489affce4f31a1euL,
@@ -462,6 +518,16 @@ if (isIntegral!StateUInt && isIntegral!OutputUInt
                 s[(j + p) & 15] = cast(StateUInt) e;
         }
     }
+}
+/// ditto
+template XorshiftStarEngine(StateUInt, uint nbits, int sa, int sb, int sc, StateUInt multiplier, OutputUInt = StateUInt)
+if (isUnsigned!StateUInt && isUnsigned!OutputUInt && OutputUInt.sizeof <= StateUInt.sizeof
+    && (sa >0 && sb > 0 && sc > 0))
+{
+    static if (nbits == StateUInt.sizeof * 8)
+        alias XorshiftStarEngine = .XorshiftStarEngine!(StateUInt, nbits, -sa, sb, -sc, multiplier, OutputUInt);
+    else
+        alias XorshiftStarEngine = .XorshiftStarEngine!(StateUInt, nbits, sa, -sb, -sc, multiplier, OutputUInt);
 }
 
 /++
@@ -716,4 +782,49 @@ struct Xoroshiro128Plus
     gen1.popFront();
     assert(a == gen2());
     assert(gen1.front == gen2());
+}
+
+// Verify that code rewriting has not changed algorithm results.
+@nogc nothrow pure @safe version(mir_random_test) unittest
+{
+    import std.meta: AliasSeq;
+    alias PRNGTypes = AliasSeq!(
+        Xorshift32, Xorshift64, Xorshift128,
+        XorshiftEngine!(ulong, 64, -12, 25, -27),
+        XorshiftEngine!(ulong, 128, 23, -18, -5),
+        XorshiftEngine!(ulong, 1024, 31, -11, -30),
+        Xorshift64Star32, Xorshift1024StarPhi, Xoroshiro128Plus);
+    immutable ulong[2][PRNGTypes.length] expected = [
+        // xorshift 32, 64, 128 with uint words
+        [2731401742UL, 136850760UL],
+        [2549865778UL, 1115114167UL],
+        [894632230UL, 3350973606UL],
+        // xorshift 64, 128, 1024 with ulong words
+        [2224398112249372979UL, 5942945680377883074UL],
+        [4028400848060651388UL, 13895196393457319541UL],
+        [4907124740424754446UL, 15368750743520076923UL],
+        // xorshift*64/32, xorshift1024*, xoroshiro128+
+        [3988833114UL, 2123560186UL],
+        [13627154139265517578UL, 4343624370592319777UL],
+        [11299058612650730663UL, 6338390222986562044UL],
+    ];
+    foreach (i, PRNGType; PRNGTypes)
+    {
+        auto rnd = PRNGType(123456789);
+        foreach (x; expected[i][])
+            assert(x == rnd());
+        // Test jump functions.
+        static if (is(PRNGType == Xoroshiro128Plus))
+        {
+            rnd.jump();
+            assert(rnd() == 12200862009693591285UL);
+            assert(rnd() == 8351819689202842404UL);
+        }
+        else static if(is(PRNGType == Xorshift1024StarPhi))
+        {
+            rnd.jump();
+            assert(rnd() == 12213380293688671629UL);
+            assert(rnd() == 12219340912072210038UL);
+        }
+    }
 }
