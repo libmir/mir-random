@@ -58,7 +58,8 @@ Params:
 Note:
 For historical compatibility when `bits == 192` and `UIntType` is `uint`
 a legacy hybrid PRNG is used consisting of a 160-bit xorshift combined
-with a 32-bit counter. This combined generator has period `2^^192 - 2^^32`.
+with a 32-bit counter. This combined generator has period equal to the
+least common multiple of `2 ^^ 160 - 1` and `2 ^^ 32`.
 +/
 struct XorshiftEngine(UIntType, uint bits, int sa, int sb, int sc)
 if (isUnsigned!UIntType)
@@ -247,8 +248,8 @@ template XorshiftEngine(uint bits, uint a, uint b, uint c)
 }
 
 /++
-Define `XorshiftEngine` generators with well-chosen parameters. See each bits examples of "Xorshift RNGs".
-`Xorshift` an alias of one of the generators in this module.
+Define `XorshiftEngine` generators with well-chosen parameters for 32-bit architectures.
+`Xorshift` is an alias of one of the generators in this module.
 +/
 alias Xorshift32  = XorshiftEngine!(32,  13, 17, 15) ;
 alias Xorshift64  = XorshiftEngine!(64,  10, 13, 10); /// ditto
