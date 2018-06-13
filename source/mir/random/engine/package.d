@@ -73,10 +73,7 @@ else version (NetBSD)
 else version (CRuntime_Bionic)
     version = GOOD_ARC4RANDOM_BUF;//ChaCha20
 
-version (D_betterC)
-    private enum bool THREAD_LOCAL_STORAGE_AVAILABLE = false;
-else
-    private enum bool THREAD_LOCAL_STORAGE_AVAILABLE = __traits(compiles, { static size_t x = 0; });
+private enum bool THREAD_LOCAL_STORAGE_AVAILABLE = __traits(compiles, { static size_t x = 0; });
 
 import std.traits;
 
