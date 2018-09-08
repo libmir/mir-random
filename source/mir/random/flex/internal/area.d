@@ -865,6 +865,12 @@ body
                     assert(iv.hatArea.approxEqual(hats[i][j], 1e-4, 1e-4));
 
                 squeezeArea!S(iv);
+                debug
+                {
+                    import std.stdio;
+                    writeln("iv.squeezeArea = ", iv.squeezeArea);
+                    writeln("sqs[i][j] = ", sqs[i][j]);
+                }
                 assert(iv.squeezeArea.approxEqual(sqs[i][j], 1e-4, 1e-4));
 
                 ++j;
