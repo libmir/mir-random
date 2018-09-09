@@ -829,25 +829,16 @@ nothrow @safe version(mir_random_test) unittest
     //Using pointer to RNG:
     setThreadLocalSeed!Random(seed);//Use a known seed instead of a random seed.
     Random* rng_ptr = threadLocalPtr!Random;
-    auto sample1 = rng_ptr
-        .range(normalVar)
-        .take(1000)
-        .array;
+    auto sample1 = rng_ptr.range(normalVar).take(1000).array;
 
     //Using alias of local RNG:
     Random rng = Random(seed);
-    auto sample2 =
-         range!rng(normalVar)
-        .take(1000)
-        .array;
+    auto sample2 = normalVar.range!rng.take(1000).array;
 
     assert(sample1 == sample2);
 
     /// using default threadlocal Random Engine
-    auto sample3 = normalVar
-        .range
-        .take(1000)
-        .array;
+    auto sample3 = normalVar.range.take(1000).array;
 }
 
 /// n-dimensional random variable infinity range
@@ -856,6 +847,7 @@ unittest
     import mir.array.allocation: array;
     import mir.random;
     import mir.random.ndvariable: sphereVar;
+    import std.algorithm.iteration: map;
     import std.range: take;
 
     immutable seed = unpredictableSeed;
@@ -865,25 +857,16 @@ unittest
     //Using pointer to RNG:
     setThreadLocalSeed!Random(seed);//Use a known seed instead of a random seed.
     Random* rng_ptr = threadLocalPtr!Random;
-    auto sample1 = rng_ptr
-        .range1(sphereVar, payload[])
-        .take(1000)
-        .array;
+    auto sample1 = rng_ptr.range1(sphereVar, payload[]).take(1000).map!"a.dup".array;
 
     //Using alias of local RNG:
     Random rng = Random(seed);
-    auto sample2 = sphereVar
-        .range!rng(payload[])
-        .take(1000)
-        .array;
+    auto sample2 = sphereVar.range!rng(payload[]).take(1000).map!"a.dup".array;
 
     assert(sample1 == sample2);
 
     /// using default threadlocal Random Engine
-    auto sample3 = sphereVar
-        .range(payload[])
-        .take(1000)
-        .array;
+    auto sample3 = sphereVar.range(payload[]).take(1000).map!"a.dup".array;
 }
 
 /// Uniform random bit generation
