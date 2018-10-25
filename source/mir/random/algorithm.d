@@ -185,7 +185,7 @@ nothrow @safe version(mir_random_test) unittest
 /// Random sample from uniform distribution strictly in the interval `(-1, 1)`.
 nothrow @safe version(mir_random_test) unittest
 {
-    import mir.ndslice.algorithm: all;
+    import mir.algorithm.iteration: all;
     import mir.math.common: fabs;
     // Using default RNE:
     auto sample = randomSlice!double(10);
@@ -447,7 +447,7 @@ nothrow @safe version(mir_random_test) unittest
 ///
 nothrow @safe version(mir_random_test) unittest
 {
-    import mir.ndslice.algorithm: equal;
+    import mir.algorithm.iteration: equal;
     import mir.ndslice.topology: iota;
     import mir.random.engine.xorshift;
 
