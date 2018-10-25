@@ -31,5 +31,5 @@
 			"versions": ["mir_random_test"]
 		}
 	},
-	 "libs-windows": ["advapi32"]
+	"libs-windows": ["advapi32"]
 }
