@@ -774,19 +774,6 @@ else version(Posix)
     else
         private __gshared IOType fdURandom;
 
-    ///
-    extern(C) shared static ~this()
-    {
-        if (fdRandom !is null)
-            fdRandom.fclose;
-
-        version (SecureARC4Random)
-        {
-            //Don't need /dev/urandom if we have arc4random_buf.
-        }
-        else if (fdURandom !is null)
-            fdURandom.fclose;
-    }
 
     /* The /dev/random device is a legacy interface which dates back to a
        time where the cryptographic primitives used in the implementation of
@@ -919,7 +906,7 @@ other calls in `mir.random.engine`.
 
 Automatically called by DRuntime.
 +/
-extern(C) void mir_random_engine_ctor()
+extern(C) void mir_random_engine_ctor() @system nothrow @nogc
 {
     version(Windows)
     {
@@ -945,27 +932,62 @@ Destructs the mir random seed generators.
 
 Automatically called by DRuntime.
 +/
-extern(C) void mir_random_engine_dtor()
+extern(C) void mir_random_engine_dtor() @system nothrow @nogc
 {
     version(Windows)
     {
         if (hProvider > 0)
             CryptReleaseContext(hProvider, 0);
     }
+    else
+    version(Darwin)
+    {
+
+    }
+    else
+    version(Posix)
+    {
+        if (fdRandom !is null)
+            fdRandom.fclose;
+
+        version (SecureARC4Random)
+        {
+            //Don't need /dev/urandom if we have arc4random_buf.
+        }
+        else if (fdURandom !is null)
+            fdURandom.fclose;
+    }
 }
 
-/// Automatically calls the extern(C) module constructor
-extern(C) shared static this()
+
+version(D_BetterC)
 {
-    mir_random_engine_ctor();
-}
+    pragma(crt_constructor)
+    extern(C) void mir_random_engine_ctor_() @system nothrow @nogc
+    {
+        mir_random_engine_ctor();
+    }
 
-/// Automatically calls the extern(C) module destructor
-extern(C) shared static ~this()
+    pragma(crt_destructor)
+    extern(C) void mir_random_engine_dtor_() @system nothrow @nogc
+    {
+        mir_random_engine_dtor();
+    }
+}
+else
 {
-    mir_random_engine_dtor();
-}
+    /// Automatically calls the extern(C) module constructor
+    shared static this()
+    {
+        mir_random_engine_ctor();
+    }
 
+    /// Automatically calls the extern(C) module destructor
+    shared static ~this()
+    {
+        mir_random_engine_dtor();
+    }
+}
 
 /++
 Fills a buffer with random data.
