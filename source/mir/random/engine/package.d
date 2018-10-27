@@ -258,7 +258,7 @@ pragma(inline, true)
 @property T unpredictableSeedOf(T)() @trusted nothrow @nogc
     if (isUnsigned!T)
 {
-    import mir.ndslice.internal: _expect;
+    import mir.utility: _expect;
     T seed = void;
     version (AnyARC4Random)
     {
@@ -469,7 +469,7 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
             pragma(inline);//DMD may fail to inline this.
         else
             pragma(inline, true);
-        import mir.ndslice.internal: _expect;
+        import mir.utility: _expect;
         if (_expect(!TL!Engine.initialized, false))
         {
             TL!Engine.reseed();
@@ -484,7 +484,7 @@ static if (THREAD_LOCAL_STORAGE_AVAILABLE)
             pragma(inline);//DMD may fail to inline this.
         else
             pragma(inline, true);
-        import mir.ndslice.internal: _expect;
+        import mir.utility: _expect;
         if (_expect(!TL!Engine.initialized, false))
         {
             TL!Engine.reseed();
@@ -1036,8 +1036,11 @@ ptrdiff_t genRandomBlocking()(scope ubyte[] buffer) @nogc nothrow @trusted
     ubyte[] buf = new ubyte[10];
     genRandomBlocking(buf);
 
-    import mir.math.sum: sum;
-    assert(buf.sum > 0, "Only zero points generated");
+    int sum;
+    foreach (b; buf)
+        sum += b;
+
+    assert(sum > 0, "Only zero points generated");
 }
 
 @nogc nothrow @safe version(mir_random_test) unittest
@@ -1117,8 +1120,11 @@ size_t genRandomNonBlocking()(scope ubyte[] buffer) @nogc nothrow @trusted
     ubyte[] buf = new ubyte[10];
     genRandomNonBlocking(buf);
 
-    import mir.math.sum: sum;
-    assert(buf.sum > 0, "Only zero points generated");
+    int sum;
+    foreach (b; buf)
+        sum += b;
+
+    assert(sum > 0, "Only zero points generated");
 }
 
 @nogc nothrow @safe
