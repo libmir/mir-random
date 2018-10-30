@@ -109,22 +109,22 @@ struct UniformVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         return length ? cast(T) (gen.randIndex!U(length) + location) : gen.rand!U;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
     }
 
     ///
-    T min() @property { return location; }
+    T min() @property const { return location; }
     ///
-    T max() @property { return cast(T) (length - 1 + location); }
+    T max() @property const { return cast(T) (length - 1 + location); }
 }
 
 /// ditto
@@ -203,7 +203,7 @@ struct UniformVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         auto ret =  gen.rand!T.fabs.fmuladd(_b - _a, _a);
@@ -212,16 +212,16 @@ struct UniformVariable(T)
         return max;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
     }
 
     ///
-    T min() @property { return _a; }
+    T min() @property const { return _a; }
     ///
-    T max() @property { return _b.nextDown; }
+    T max() @property const { return _b.nextDown; }
 }
 
 /// ditto
@@ -317,13 +317,13 @@ struct ExponentialVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         return gen.randExponential2!T * scale;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -381,13 +381,13 @@ struct WeibullVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         return ExponentialVariable!T()(gen).pow(_pow) * scale;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -454,7 +454,7 @@ struct GammaVariable(T, bool Exp = false)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         T x = void;
@@ -517,7 +517,7 @@ struct GammaVariable(T, bool Exp = false)
             return x * scale;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -576,7 +576,7 @@ struct BetaVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         if (a <= 1 && b <= 1) for (;;)
@@ -606,7 +606,7 @@ struct BetaVariable(T)
         return x / z;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -661,13 +661,13 @@ struct ChiSquaredVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         return GammaVariable!T(_shape, 2)(gen);
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -721,7 +721,7 @@ struct FisherFVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         auto xv = GammaVariable!T(_d1 * 0.5f, 1);
@@ -733,7 +733,7 @@ struct FisherFVariable(T)
         return x / y;
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -1064,7 +1064,7 @@ struct CauchyVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         T u = void;
@@ -1079,7 +1079,7 @@ struct CauchyVariable(T)
         return fmuladd(x, scale, location);
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -1138,13 +1138,13 @@ struct ExtremeValueVariable(T)
     }
 
     ///
-    T opCall(G)(scope ref G gen)
+    T opCall(G)(scope ref G gen) const
         if (isSaturatedRandomEngine!G)
     {
         return fmuladd(log2(gen.randExponential2!T * T(LN2)), scale, location);
     }
     /// ditto
-    T opCall(G)(scope G* gen)
+    T opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -1204,13 +1204,13 @@ struct BernoulliVariable(T)
     }
 
     ///
-    bool opCall(RNG)(scope ref RNG gen)
+    bool opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return gen.rand!T.fabs < p;
     }
     /// ditto
-    bool opCall(RNG)(scope RNG* gen)
+    bool opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
@@ -1347,14 +1347,14 @@ struct GeometricVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(scope ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         auto ret = gen.randExponential2!T * scale;
         return ret < ulong.max ? cast(ulong)ret : ulong.max;
     }
     /// ditto
-    ulong opCall(RNG)(scope RNG* gen)
+    ulong opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
@@ -1457,7 +1457,7 @@ struct PoissonVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(scope ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         import core.stdc.tgmath: lgamma;
@@ -1487,7 +1487,7 @@ struct PoissonVariable(T)
         }
     }
     /// ditto
-    ulong opCall(G)(scope G* gen)
+    ulong opCall(G)(scope G* gen) const
         if (isSaturatedRandomEngine!G)
     {
         return opCall!(G)(*gen);
@@ -1561,7 +1561,7 @@ struct NegativeBinomialVariable(T)
     }
 
     ///
-    ulong opCall(RNG)(scope ref RNG gen)
+    ulong opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         if (r <= 21 * p)
@@ -1575,7 +1575,7 @@ struct NegativeBinomialVariable(T)
         return PoissonVariable!T(GammaVariable!T(r, (1 - p) / p)(gen))(gen);
     }
     /// ditto
-    ulong opCall(RNG)(scope RNG* gen)
+    ulong opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
@@ -1694,7 +1694,7 @@ struct BinomialVariable(T)
     }
 
     ///
-    size_t opCall(RNG)(scope ref RNG gen)
+    size_t opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         T kr = void;
@@ -1736,7 +1736,7 @@ struct BinomialVariable(T)
         return swap ? n - ret : ret;
     }
     ///
-    size_t opCall(RNG)(scope RNG* gen)
+    size_t opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
@@ -1745,7 +1745,7 @@ struct BinomialVariable(T)
     ///
     enum size_t min = 0;
     ///
-    size_t max() @property { return n; };
+    size_t max() @property const { return n; };
 }
 
 /// ditto
@@ -1836,7 +1836,7 @@ struct DiscreteVariable(T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    size_t opCall(RNG)(scope ref RNG gen)
+    size_t opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         import std.range : assumeSorted;
@@ -1847,7 +1847,7 @@ struct DiscreteVariable(T)
         return cdf.length - cdf.assumeSorted!"a < b".upperBound(v).length;
     }
     /// ditto
-    size_t opCall(RNG)(scope RNG* gen)
+    size_t opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
@@ -1856,7 +1856,7 @@ struct DiscreteVariable(T)
     ///
     enum size_t min = 0;
     ///
-    size_t max() @property { return cdf.length - 1; }
+    size_t max() @property const { return cdf.length - 1; }
 }
 
 /// ditto
@@ -2023,23 +2023,23 @@ struct PiecewiseConstantVariable(T, W = T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    T opCall(RNG)(scope ref RNG gen)
+    T opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         size_t index = dv(gen);
         return UniformVariable!T(intervals[index], intervals[index + 1])(gen);
     }
     /// ditto
-    T opCall(RNG)(scope RNG* gen)
+    T opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
     }
 
     ///
-    T min() @property { return intervals[0]; }
+    T min() @property const { return intervals[0]; }
     ///
-    T max() @property { return intervals[$-1].nextDown; }
+    T max() @property const { return intervals[$-1].nextDown; }
 }
 
 /// ditto
@@ -2141,7 +2141,7 @@ struct PiecewiseLinearVariable(T)
     Complexity:
         `O(log n)` where `n` is the number of `weights`.
     +/
-    T opCall(RNG)(scope ref RNG gen)
+    T opCall(RNG)(scope ref RNG gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         size_t index = dv(gen);
@@ -2163,16 +2163,16 @@ struct PiecewiseLinearVariable(T)
         return ret;
     }
     /// ditto
-    T opCall(RNG)(scope RNG* gen)
+    T opCall(RNG)(scope RNG* gen) const
         if (isSaturatedRandomEngine!RNG)
     {
         return opCall!(RNG)(*gen);
     }
 
     ///
-    T min() @property { return points[0]; }
+    T min() @property const { return points[0]; }
     ///
-    T max() @property { return points[$-1].nextDown; }
+    T max() @property const { return points[$-1].nextDown; }
 }
 
 /// ditto
