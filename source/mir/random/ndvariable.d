@@ -139,7 +139,7 @@ struct SimplexVariable(T)
 
     ///
     pragma(inline, false)
-    void opCall(G)(scope ref G gen, scope T[] result)
+    void opCall(G)(scope ref G gen, scope T[] result) const
         if (isSaturatedRandomEngine!G)
     {
         import mir.ndslice.sorting : sort;
@@ -153,7 +153,7 @@ struct SimplexVariable(T)
         result[1 .. $].retro[] = result.diff.retro;
     }
     /// ditto
-    void opCall(G)(scope G* gen, scope T[] result)
+    void opCall(G)(scope G* gen, scope T[] result) const
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -230,7 +230,7 @@ struct DirichletVariable(T)
 
     ///
     pragma(inline, false)
-    void opCall(G)(scope ref G gen, scope T[] result)
+    void opCall(G)(scope ref G gen, scope T[] result) const
         if (isSaturatedRandomEngine!G)
     {
         assert(result.length == alpha.length);
@@ -240,7 +240,7 @@ struct DirichletVariable(T)
         result[] /= summator;
     }
     /// ditto
-    void opCall(G)(scope G* gen, scope T[] result)
+    void opCall(G)(scope G* gen, scope T[] result) const
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
