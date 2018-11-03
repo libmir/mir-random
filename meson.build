@@ -1,6 +1,8 @@
-project('mir-random', 'd', version : '2.1.0', license: 'BSL-1.0')
+project('mir-random', 'd', version : '2.1.1', license: 'BSL-1.0')
 
-required_deps = []
+mir_core_dep = dependency('mir-core', fallback : ['mir-core', 'mir_core_dep'])
+
+required_deps = [mir_core_dep]
 
 if get_option('extended')
     mir_algorithm_dep = dependency('mir-algorithm', fallback : ['mir-algorithm', 'mir_algorithm_dep'])
