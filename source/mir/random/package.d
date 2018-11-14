@@ -31,20 +31,13 @@ T2=$(TR $(TDNW $(LREF $1)) $(TD $+))
 module mir.random;
 
 import std.traits;
+import mir.bitop: bsf = cttz;
 
 public import mir.random.engine;
 
 version (LDC)
 {
     import ldc.intrinsics: llvm_expect, log2 = llvm_log2;
-
-    private
-    pragma(inline, true)
-    T bsf(T)(T v) pure @safe nothrow @nogc
-    {
-        import ldc.intrinsics;
-        return llvm_cttz(v, true);
-    }
 
     // LDC 1.8.0 supports llvm_expect in CTFE.
     private template _ctfeExpect(string expr, string expected)
@@ -55,11 +48,16 @@ version (LDC)
             private enum _ctfeExpect = expr;
     }
 }
+else version (GNU)
+{
+    import mir.math.common: log2;
+    import gcc.builtins: __builtin_expect;
+
+    private enum _ctfeExpect(string expr, string expected) = `__builtin_expect(`~expr~`,`~expected~`)`;
+}
 else
 {
     import std.math: log2;
-    import core.bitop: bsf;
-
     private enum _ctfeExpect(string expr, string expected) = expr;
 }
 
