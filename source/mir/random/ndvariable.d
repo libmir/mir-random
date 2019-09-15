@@ -100,7 +100,7 @@ struct SphereVariable(T)
 /// ditto
 SphereVariable!T sphereVar(T = double)()
     if (isFloatingPoint!T)
-{   
+{
     return typeof(return).init;
 }
 
@@ -164,7 +164,7 @@ struct SimplexVariable(T)
 /// ditto
 SimplexVariable!T simplexVar(T = double)()
     if (isFloatingPoint!T)
-{   
+{
     return typeof(return).init;
 }
 
@@ -251,7 +251,7 @@ struct DirichletVariable(T)
 /// ditto
 DirichletVariable!T dirichletVar(T)(in T[] alpha)
     if (isFloatingPoint!T)
-{   
+{
     return typeof(return)(alpha);
 }
 
@@ -277,6 +277,119 @@ nothrow @safe version(mir_random_test) unittest
     rv(gen, x);
     assert(x[0] >= 0 && x[1] >= 0 && x[2] >= 0);
     assert(fabs(x[0] + x[1] + x[2] - 1) < 1e-10);
+}
+
+/++
+Multinomial distribution.
++/
+struct MultinomialVariable(T)
+    if (isFloatingPoint!T)
+{
+    import mir.random.variable : binomialVar;
+
+    ///
+    enum isNdRandomVariable = true;
+    ///
+    alias Element = T;
+
+    ///
+    const(T)[] probs;
+    const ulong N;
+
+    /++
+    Params:
+        probs = probabilities
+        N = Number of rolls
+    Constraints: `sum(probs[i]) <= 1`
+    +/
+
+    /// ditto
+    this()(const ulong N, const(T)[] probs)
+    {
+        this.N = N;
+        this.probs = probs;
+    }
+
+    ///
+    pragma(inline, false)
+    ulong[] opCall(G)(scope ref G gen, scope T[] result)
+        if (isSaturatedRandomEngine!G)
+    {
+            uint k;
+            alias p =this.probs;
+            auto K = p.length;
+            double norm = 0.0;
+            double sum_p = 0.0;
+            alias rng = rne;
+
+            uint sum_n = 0;
+            ulong[] n;
+
+            /* p[k] may contain non-negative weights that do not sum to 1.0.
+           * Even a probability distribution will not exactly sum to 1.0
+           * due to rounding errors.
+           */
+
+            for (k = 0; k < K; k++)
+            {
+                n ~= 0; /// intializing array n
+                norm += p[k];
+            }
+
+            for (k = 0; k < K; k++)
+            {
+                if (p[k] > 0.0)
+                {
+                    auto rv = binomialVar(this.N - sum_n, p[k] / (norm - sum_p));
+                    n[k] = rv(rng);
+
+                }
+                else
+                {
+                    n[k] = 0;
+                }
+
+                sum_p += p[k];
+                sum_n += n[k];
+            }
+            return n;
+    }
+    /// ditto
+    void opCall(G)(scope G* gen, scope T[] result)
+        if (isSaturatedRandomEngine!G)
+    {
+        pragma(inline, true);
+        opCall(*gen, result);
+    }
+}
+
+/// ditto
+MultinomialVariable!T multinomialVar(T)(in T N, in T[] probs)
+    if (isFloatingPoint!T)
+{
+    return typeof(return)(N, probs);
+}
+
+/// ditto
+alias multinomialVariable = multinomialVar;
+
+///
+nothrow @safe version(mir_random_test) unittest
+{
+    auto rv = multinomialVar(1000, [1.0, 5.7, 0.3]);
+    rv(rne);
+    assert(1==1);
+    assert(1==1);
+}
+
+///
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    auto rv = MultinomialVariable!double(1000, [1.0, 5.7, 0.3]);
+    rv(gen);
+    assert(1==1);
+    assert(1==1);
 }
 
 /++
@@ -403,13 +516,13 @@ static if (is(typeof({import mir.ndslice.slice;})))
 
     /// ditto
     MultivariateNormalVariable!T multivariateNormalVar(T)(Slice!(const(T)*) mu, Slice!(T*, 2) sigma, bool chol = false)
-    {   
+    {
         return typeof(return)(mu, sigma, chol);
     }
 
     /// ditto
     MultivariateNormalVariable!T multivariateNormalVar(T)(Slice!(T*, 2) sigma, bool chol = false)
-    {   
+    {
         return typeof(return)(sigma, chol);
     }
 }
