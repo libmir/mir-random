@@ -7,6 +7,7 @@ $(BOOKTABLE $(H2 Multidimensional Random Variables),
     $(RVAR Sphere, Uniform distribution on a unit-sphere)
     $(RVAR Simplex, Uniform distribution on a standard-simplex)
     $(RVAR Dirichlet, $(WIKI_D Dirichlet))
+    $(RVAR Multinomial, $(WIKI_D Multinomial))
     $(RVAR MultivariateNormal, $(WIKI_D Multivariate_normal))
 )
 
@@ -282,7 +283,7 @@ nothrow @safe version(mir_random_test) unittest
 /++
 Multinomial distribution.
 +/
-struct MultinomialVariable(T)
+struct MultinomialVariable(U:ulong, T)
     if (isFloatingPoint!T)
 {
     import mir.random.variable : binomialVar;
@@ -312,7 +313,7 @@ struct MultinomialVariable(T)
 
     ///
     pragma(inline, false)
-    ulong[] opCall(G)(scope ref G gen, scope T[] result)
+    void opCall(G)(scope ref G gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
             uint k;
@@ -352,10 +353,10 @@ struct MultinomialVariable(T)
                 sum_p += p[k];
                 sum_n += n[k];
             }
-            return n;
+            result = n;
     }
     /// ditto
-    void opCall(G)(scope G* gen, scope T[] result)
+    void opCall(G)(scope G* gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -364,7 +365,7 @@ struct MultinomialVariable(T)
 }
 
 /// ditto
-MultinomialVariable!T multinomialVar(T)(in T N, in T[] probs)
+MultinomialVariable!(U,T) multinomialVar(U, T)(in U N, in T[] probs)
     if (isFloatingPoint!T)
 {
     return typeof(return)(N, probs);
@@ -376,9 +377,12 @@ alias multinomialVariable = multinomialVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
-    auto rv = multinomialVar(1000, [1.0, 5.7, 0.3]);
-    rv(rne);
-    assert(1==1);
+    ulong s = 1000;
+    double[3] p =[1.0, 5.7, 0.3];
+    auto rv = multinomialVar(s, p);
+    ulong[3] x;
+    rv(rne,x);
+    //assert(x[0]+x[1]+x[2] == s);
     assert(1==1);
 }
 
@@ -386,9 +390,11 @@ nothrow @safe version(mir_random_test) unittest
 nothrow @safe version(mir_random_test) unittest
 {
     Random* gen = threadLocalPtr!Random;
-    auto rv = MultinomialVariable!double(1000, [1.0, 5.7, 0.3]);
-    rv(gen);
-    assert(1==1);
+    ulong s = 1000;
+    auto rv = MultinomialVariable!(ulong,double)(s, [1.0, 5.7, 0.3]);
+    ulong[3] x;
+    rv(gen,x);
+    //assert(x[0]+x[1]+x[2] == s);
     assert(1==1);
 }
 
