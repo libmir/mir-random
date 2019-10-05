@@ -379,9 +379,9 @@ alias multinomialVariable = multinomialVar;
 
 
 ///
-@safe version(mir_random_test) unittest
+nothrow @safe version(mir_random_test) unittest
 {
-    import mir.ndslice.slice;
+
     ulong s = 1000;
     double[3] p =[1.0, 5.7, 0.3];
     auto rv = multinomialVar(s, p);
@@ -392,9 +392,8 @@ alias multinomialVariable = multinomialVar;
 }
 
 ///
-@safe version(mir_random_test) unittest
+nothrow @safe version(mir_random_test) unittest
 {
-    import mir.ndslice.slice;
     Random* gen = threadLocalPtr!Random;
     ulong s = 1000;
     auto rv = MultinomialVariable!(ulong,double)(s, [1.0, 5.7, 0.3]);
