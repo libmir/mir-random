@@ -283,7 +283,7 @@ nothrow @safe version(mir_random_test) unittest
 /++
 Multinomial distribution.
 +/
-struct MultinomialVariable(U:ulong, T)
+struct MultinomialVariable(U:size_t, T)
     if (isFloatingPoint!T)
 {
     import mir.random.variable : binomialVar;
@@ -295,7 +295,7 @@ struct MultinomialVariable(U:ulong, T)
 
     ///
     const(T)[] probs;
-    const ulong N;
+    const size_t N;
 
     /++
     Params:
@@ -303,9 +303,7 @@ struct MultinomialVariable(U:ulong, T)
         N = Number of rolls
     Constraints: `sum(probs[i]) <= 1`
     +/
-
-    /// ditto
-    this()(const ulong N, const(T)[] probs)
+    this()(const size_t N, const(T)[] probs)
     {
         this.N = N;
         this.probs = probs;
@@ -313,7 +311,7 @@ struct MultinomialVariable(U:ulong, T)
 
     ///
     pragma(inline, false)
-    ulong[] opCall(G)(scope ref G gen, scope U[] result)
+    size_t[] opCall(G)(scope ref G gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
         uint k;
@@ -324,7 +322,7 @@ struct MultinomialVariable(U:ulong, T)
         alias rng = rne;
 
         uint sum_n = 0;
-        ulong[] n;
+        size_t[] n;
 
         /* p[k] may contain non-negative weights that do not sum to 1.0.
        * Even a probability distribution will not exactly sum to 1.0
@@ -341,6 +339,7 @@ struct MultinomialVariable(U:ulong, T)
         {
             if (p[k] > 0.0)
             {
+
                 auto rv = binomialVar(this.N - sum_n, p[k] / (norm - sum_p));
                 n[k] = rv(rng);
 
@@ -358,7 +357,7 @@ struct MultinomialVariable(U:ulong, T)
 
     }
     /// ditto
-    ulong[] opCall(G)(scope G* gen, scope U[] result)
+    size_t[] opCall(G)(scope G* gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -381,11 +380,10 @@ alias multinomialVariable = multinomialVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
-
-    ulong s = 1000;
+    size_t s = 1000;
     double[3] p =[1.0, 5.7, 0.3];
     auto rv = multinomialVar(s, p);
-    ulong[3] x;
+    size_t[3] x;
     x = rv(rne,x[]);
     //writeln(x);
     assert(x[0]+x[1]+x[2] == s);
@@ -395,9 +393,9 @@ nothrow @safe version(mir_random_test) unittest
 nothrow @safe version(mir_random_test) unittest
 {
     Random* gen = threadLocalPtr!Random;
-    ulong s = 1000;
-    auto rv = MultinomialVariable!(ulong,double)(s, [1.0, 5.7, 0.3]);
-    ulong[3] x;
+    size_t s = 1000;
+    auto rv = MultinomialVariable!(size_t,double)(s, [1.0, 5.7, 0.3]);
+    size_t[3] x;
     x = rv(gen,x[]);
     assert(x[0]+x[1]+x[2] == s);
 }
