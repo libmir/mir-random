@@ -291,11 +291,11 @@ struct MultinomialVariable(U:size_t, T)
     ///
     enum isNdRandomVariable = true;
     ///
-    alias Element = T;
+    alias Element = uint;
 
     ///
     const(T)[] probs;
-    const size_t N;
+    size_t N;
 
     /++
     Params:
@@ -303,7 +303,7 @@ struct MultinomialVariable(U:size_t, T)
         N = Number of rolls
     Constraints: `sum(probs[i]) <= 1`
     +/
-    this()(const size_t N, const(T)[] probs)
+    this()(size_t N, const(T)[] probs)
     {
         this.N = N;
         this.probs = probs;
@@ -311,53 +311,51 @@ struct MultinomialVariable(U:size_t, T)
 
     ///
     pragma(inline, false)
-    size_t[] opCall(G)(scope ref G gen, scope U[] result)
+    void opCall(G)(scope ref G gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
-        uint k;
-        alias p =this.probs;
-        auto K = p.length;
+        auto K = this.probs.length;
         double norm = 0.0;
         double sum_p = 0.0;
         alias rng = rne;
 
         uint sum_n = 0;
-        size_t[] n;
+        //size_t[] n;
 
         /* p[k] may contain non-negative weights that do not sum to 1.0.
        * Even a probability distribution will not exactly sum to 1.0
        * due to rounding errors.
        */
 
-        for (k = 0; k < K; k++)
+        foreach(k, p; this.probs)
         {
-            n ~= 0; /// intializing array n
-            norm += p[k];
+
+            norm += p;//this.probs[k];
         }
 
-        for (k = 0; k < K; k++)
+        foreach(k, p; this.probs)
         {
-            if (p[k] > 0.0)
+            if (p > 0.0)
             {
 
-                auto rv = binomialVar(this.N - sum_n, p[k] / (norm - sum_p));
-                n[k] = rv(rng);
+                auto rv = binomialVar!T(this.N - sum_n, p / (norm - sum_p));
+                result[k] = cast(uint)rv(rng);
 
             }
             else
             {
-                n[k] = 0;
+                result[k] = 0;
             }
 
-            sum_p += p[k];
-            sum_n += n[k];
+            sum_p += p;
+            sum_n += result[k];
         }
-        result = n;
-        return result;
+        //result = n;
+        //return result;
 
     }
     /// ditto
-    size_t[] opCall(G)(scope G* gen, scope U[] result)
+    void opCall(G)(scope G* gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -384,7 +382,7 @@ nothrow @safe version(mir_random_test) unittest
     double[3] p =[1.0, 5.7, 0.3];
     auto rv = multinomialVar(s, p);
     size_t[3] x;
-    x = rv(rne,x[]);
+    rv(rne,x[]);
     //writeln(x);
     assert(x[0]+x[1]+x[2] == s);
 }
@@ -394,9 +392,9 @@ nothrow @safe version(mir_random_test) unittest
 {
     Random* gen = threadLocalPtr!Random;
     size_t s = 1000;
-    auto rv = MultinomialVariable!(size_t,double)(s, [1.0, 5.7, 0.3]);
+    auto rv = MultinomialVariable!(size_t, double)(s, [1.0, 5.7, 0.3]);
     size_t[3] x;
-    x = rv(gen,x[]);
+    rv(gen,x[]);
     assert(x[0]+x[1]+x[2] == s);
 }
 
