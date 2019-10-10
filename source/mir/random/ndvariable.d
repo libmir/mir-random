@@ -299,7 +299,7 @@ struct MultinomialVariable(U:size_t, T)
 
     /++
     Params:
-        probs = probabilities
+        probs = probabilities of the multinomial distribution
         N = Number of rolls
     Constraints: `sum(probs[i]) <= 1`
     +/
@@ -320,17 +320,13 @@ struct MultinomialVariable(U:size_t, T)
         alias rng = rne;
 
         uint sum_n = 0;
-        //size_t[] n;
 
-        /* p[k] may contain non-negative weights that do not sum to 1.0.
-       * Even a probability distribution will not exactly sum to 1.0
-       * due to rounding errors.
-       */
 
+        /// Makes sure probabilities add up to one, by calculating a normalization term
         foreach(k, p; this.probs)
         {
 
-            norm += p;//this.probs[k];
+            norm += p;
         }
 
         foreach(k, p; this.probs)
@@ -350,8 +346,7 @@ struct MultinomialVariable(U:size_t, T)
             sum_p += p;
             sum_n += result[k];
         }
-        //result = n;
-        //return result;
+
 
     }
     /// ditto
@@ -383,7 +378,6 @@ nothrow @safe version(mir_random_test) unittest
     auto rv = multinomialVar(s, p);
     size_t[3] x;
     rv(rne,x[]);
-    //writeln(x);
     assert(x[0]+x[1]+x[2] == s);
 }
 
