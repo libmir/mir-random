@@ -314,10 +314,8 @@ struct MultinomialVariable(U:size_t, T)
     void opCall(G)(scope ref G gen, scope U[] result)
         if (isSaturatedRandomEngine!G)
     {
-        auto K = this.probs.length;
         double norm = 0.0;
         double sum_p = 0.0;
-        alias rng = rne;
 
         uint sum_n = 0;
 
@@ -325,7 +323,6 @@ struct MultinomialVariable(U:size_t, T)
         /// Makes sure probabilities add up to one, by calculating a normalization term
         foreach(k, p; this.probs)
         {
-
             norm += p;
         }
 
@@ -333,9 +330,8 @@ struct MultinomialVariable(U:size_t, T)
         {
             if (p > 0.0)
             {
-
                 auto rv = binomialVar!T(this.N - sum_n, p / (norm - sum_p));
-                result[k] = cast(uint)rv(rng);
+                result[k] = cast(uint)rv(gen);
 
             }
             else
@@ -373,12 +369,12 @@ alias multinomialVariable = multinomialVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
-    size_t s = 1000;
-    double[3] p =[1.0, 5.7, 0.3];
+    size_t s = 10000;
+    double[6] p =[1/6., 1/6., 1/6, 1/6., 1/6., 1/6.];
     auto rv = multinomialVar(s, p);
-    size_t[3] x;
+    size_t[6] x;
     rv(rne,x[]);
-    assert(x[0]+x[1]+x[2] == s);
+    assert(x[0]+x[1]+x[2]+x[3]+x[4]+x[5] == s);
 }
 
 ///
