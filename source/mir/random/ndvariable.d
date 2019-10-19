@@ -283,7 +283,7 @@ nothrow @safe version(mir_random_test) unittest
 /++
 Multinomial distribution.
 +/
-struct MultinomialVariable(U:size_t, T)
+struct MultinomialVariable(T)
     if (isFloatingPoint!T)
 {
     import mir.random.variable : binomialVar;
@@ -296,6 +296,8 @@ struct MultinomialVariable(U:size_t, T)
     ///
     const(T)[] probs;
     size_t N;
+    double norm = 0.0;
+
 
     /++
     Params:
@@ -307,30 +309,30 @@ struct MultinomialVariable(U:size_t, T)
     {
         this.N = N;
         this.probs = probs;
+         /// Makes sure probabilities add up to one, by calculating a normalization factor
+        foreach(k, p; this.probs)
+        {
+            this.norm += p;
+        }
+        //assert(fabs(this.norm - 1) <= double.min_normal * this.probs.length * 2);
     }
 
     ///
     pragma(inline, false)
-    void opCall(G)(scope ref G gen, scope U[] result)
+    void opCall(G)(scope ref G gen, scope size_t[] result)
         if (isSaturatedRandomEngine!G)
     {
-        double norm = 0.0;
         double sum_p = 0.0;
 
         uint sum_n = 0;
 
 
-        /// Makes sure probabilities add up to one, by calculating a normalization term
-        foreach(k, p; this.probs)
-        {
-            norm += p;
-        }
 
         foreach(k, p; this.probs)
         {
             if (p > 0.0)
             {
-                auto rv = binomialVar!T(this.N - sum_n, p / (norm - sum_p));
+                auto rv = binomialVar!T(this.N - sum_n, p / (this.norm - sum_p));
                 result[k] = cast(uint)rv(gen);
 
             }
@@ -346,7 +348,7 @@ struct MultinomialVariable(U:size_t, T)
 
     }
     /// ditto
-    void opCall(G)(scope G* gen, scope U[] result)
+    void opCall(G)(scope G* gen, scope size_t[] result)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -355,7 +357,7 @@ struct MultinomialVariable(U:size_t, T)
 }
 
 /// ditto
-MultinomialVariable!(U,T) multinomialVar(U, T)(in U N, in T[] probs)
+MultinomialVariable!(T) multinomialVar(T)(size_t N, return const T[] probs)
     if (isFloatingPoint!T)
 {
     return typeof(return)(N, probs);
@@ -370,7 +372,7 @@ alias multinomialVariable = multinomialVar;
 nothrow @safe version(mir_random_test) unittest
 {
     size_t s = 10000;
-    double[6] p =[1/6., 1/6., 1/6, 1/6., 1/6., 1/6.];
+    double[6] p =[1/6., 1/6., 1/6, 1/6., 1/6., 1/16.]; // probs add to less than one
     auto rv = multinomialVar(s, p);
     size_t[6] x;
     rv(rne,x[]);
@@ -382,7 +384,7 @@ nothrow @safe version(mir_random_test) unittest
 {
     Random* gen = threadLocalPtr!Random;
     size_t s = 1000;
-    auto rv = MultinomialVariable!(size_t, double)(s, [1.0, 5.7, 0.3]);
+    auto rv = MultinomialVariable!(double)(s, [1.0, 5.7, 0.3]); // probs add to more than one
     size_t[3] x;
     rv(gen,x[]);
     assert(x[0]+x[1]+x[2] == s);
