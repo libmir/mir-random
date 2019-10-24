@@ -310,11 +310,16 @@ struct MultinomialVariable(T)
         this.N = N;
         this.probs = probs;
          /// Makes sure probabilities add up to one, by calculating a normalization factor
-        foreach(k, p; this.probs)
+        version(assert)
         {
-            this.norm += p;
+            T norm = 0;
+            foreach(k, p; this.probs)
+        {
+            norm += p;
         }
-        //assert(fabs(this.norm - 1) <= double.min_normal * this.probs.length * 2);
+            assert(fabs(norm - 1) <= T.epsilon * probs.length * 2);
+        }
+
     }
 
     ///
@@ -368,11 +373,21 @@ alias multinomialVariable = multinomialVar;
 
 
 
-///
+
+//nothrow @safe version(mir_random_test) unittest
+//{
+//    size_t s = 10000;
+//    double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/16.]; // probs add to less than one
+//    auto rv = multinomialVar(s, p);
+//    size_t[6] x;
+//    rv(rne,x[]);
+//    assert(x[0]+x[1]+x[2]+x[3]+x[4]+x[5] == s);
+//}
+
 nothrow @safe version(mir_random_test) unittest
 {
     size_t s = 10000;
-    double[6] p =[1/6., 1/6., 1/6, 1/6., 1/6., 1/16.]; // probs add to less than one
+    double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/6.]; // probs add to less than one
     auto rv = multinomialVar(s, p);
     size_t[6] x;
     rv(rne,x[]);
@@ -380,15 +395,15 @@ nothrow @safe version(mir_random_test) unittest
 }
 
 ///
-nothrow @safe version(mir_random_test) unittest
-{
-    Random* gen = threadLocalPtr!Random;
-    size_t s = 1000;
-    auto rv = MultinomialVariable!(double)(s, [1.0, 5.7, 0.3]); // probs add to more than one
-    size_t[3] x;
-    rv(gen,x[]);
-    assert(x[0]+x[1]+x[2] == s);
-}
+//nothrow @safe version(mir_random_test) unittest
+//{
+//    Random* gen = threadLocalPtr!Random;
+//    size_t s = 1000;
+//    auto rv = MultinomialVariable!(double)(s, [1.0, 5.7, 0.3]); // probs add to more than one
+//    size_t[3] x;
+//    rv(gen,x[]);
+//    assert(x[0]+x[1]+x[2] == s);
+//}
 
 /++
 Multivariate normal distribution.
