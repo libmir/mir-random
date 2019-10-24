@@ -328,10 +328,7 @@ struct MultinomialVariable(T)
         if (isSaturatedRandomEngine!G)
     {
         double sum_p = 0.0;
-
         uint sum_n = 0;
-
-
 
         foreach(k, p; this.probs)
         {
@@ -371,39 +368,16 @@ MultinomialVariable!(T) multinomialVar(T)(size_t N, return const T[] probs)
 /// ditto
 alias multinomialVariable = multinomialVar;
 
-
-
-
-//nothrow @safe version(mir_random_test) unittest
-//{
-//    size_t s = 10000;
-//    double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/16.]; // probs add to less than one
-//    auto rv = multinomialVar(s, p);
-//    size_t[6] x;
-//    rv(rne,x[]);
-//    assert(x[0]+x[1]+x[2]+x[3]+x[4]+x[5] == s);
-//}
-
 nothrow @safe version(mir_random_test) unittest
 {
     size_t s = 10000;
-    double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/6.]; // probs add to less than one
+    double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/6.]; // probs must add up to one
     auto rv = multinomialVar(s, p);
     size_t[6] x;
     rv(rne,x[]);
     assert(x[0]+x[1]+x[2]+x[3]+x[4]+x[5] == s);
 }
 
-///
-//nothrow @safe version(mir_random_test) unittest
-//{
-//    Random* gen = threadLocalPtr!Random;
-//    size_t s = 1000;
-//    auto rv = MultinomialVariable!(double)(s, [1.0, 5.7, 0.3]); // probs add to more than one
-//    size_t[3] x;
-//    rv(gen,x[]);
-//    assert(x[0]+x[1]+x[2] == s);
-//}
 
 /++
 Multivariate normal distribution.
