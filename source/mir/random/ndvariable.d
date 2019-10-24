@@ -327,7 +327,7 @@ struct MultinomialVariable(T)
     void opCall(G)(scope ref G gen, scope size_t[] result)
         if (isSaturatedRandomEngine!G)
     {
-        double sum_p = 0.0;
+        T sum_p = 0.0;
         uint sum_n = 0;
 
         foreach(k, p; this.probs)
@@ -350,7 +350,7 @@ struct MultinomialVariable(T)
 
     }
     /// ditto
-    void opCall(G)(scope G* gen, scope size_t[] result)
+    void opCall(G)(scope G* gen, scope uint[] result)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
@@ -368,6 +368,7 @@ MultinomialVariable!(T) multinomialVar(T)(size_t N, return const T[] probs)
 /// ditto
 alias multinomialVariable = multinomialVar;
 
+/// Tests if sample returned is of correct size.
 nothrow @safe version(mir_random_test) unittest
 {
     size_t s = 10000;
