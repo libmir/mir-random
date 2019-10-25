@@ -324,11 +324,11 @@ struct MultinomialVariable(T)
 
     ///
     pragma(inline, false)
-    void opCall(G)(scope ref G gen, scope size_t[] result)
+    void opCall(G)(scope ref G gen, scope uint[] result)
         if (isSaturatedRandomEngine!G)
     {
         T sum_p = 0.0;
-        uint sum_n = 0;
+        size_t sum_n = 0;
 
         foreach(k, p; this.probs)
         {
@@ -354,7 +354,7 @@ struct MultinomialVariable(T)
         if (isSaturatedRandomEngine!G)
     {
         pragma(inline, true);
-        return opCall(*gen, result);
+        opCall(*gen, result);
     }
 }
 
@@ -374,11 +374,21 @@ nothrow @safe version(mir_random_test) unittest
     size_t s = 10000;
     double[6] p =[1/6., 1/6., 1/6., 1/6., 1/6., 1/6.]; // probs must add up to one
     auto rv = multinomialVar(s, p);
-    size_t[6] x;
-    rv(rne,x[]);
+    uint[6] x;
+    rv(rne, x[]);
     assert(x[0]+x[1]+x[2]+x[3]+x[4]+x[5] == s);
 }
 
+nothrow @safe version(mir_random_test) unittest
+{
+    Random* gen = threadLocalPtr!Random;
+    size_t s = 1000;
+    double[3] p = [0.1, 0.5, 0.4];
+    auto rv = MultinomialVariable!(double)(s, p);
+    uint[3] x;
+    rv(gen, x[]);
+    assert(x[0]+x[1]+x[2] == s);
+}
 
 /++
 Multivariate normal distribution.
