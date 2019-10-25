@@ -314,9 +314,9 @@ struct MultinomialVariable(T)
         {
             T norm = 0;
             foreach(k, p; this.probs)
-        {
-            norm += p;
-        }
+            {
+                norm += p;
+            }
             assert(fabs(norm - 1) <= T.epsilon * probs.length * 2);
         }
 
