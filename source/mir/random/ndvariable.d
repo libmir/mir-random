@@ -296,7 +296,6 @@ struct MultinomialVariable(T)
     ///
     const(T)[] probs;
     size_t N;
-    double norm = 0.0;
 
 
     /++
@@ -334,7 +333,7 @@ struct MultinomialVariable(T)
         {
             if (p > 0.0)
             {
-                auto rv = binomialVar!T(this.N - sum_n, p / (this.norm - sum_p));
+                auto rv = binomialVar!T(this.N - sum_n, p / (1 - sum_p));
                 result[k] = cast(uint)rv(gen);
 
             }
