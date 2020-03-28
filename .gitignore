@@ -16,6 +16,7 @@ dub.selections.json
 mir-random-test-library
 docs.json
 build/
+_build_dir_/
 *.exe
 *.lib
 mir-random-test-default
