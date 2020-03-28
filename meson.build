@@ -76,7 +76,7 @@ this_dep = declare_dependency(
     dependencies: required_deps,
 )
 
-test_versions = ['mir_test']
+test_versions = ['mir_random_test']
 
 if has_cpp_headers
     install_subdir('include/',
@@ -97,3 +97,5 @@ import('pkgconfig').generate(this_lib,
 
 mir_random_dep = this_dep
 mir_random_lib = this_lib
+
+test_subdirs = []
