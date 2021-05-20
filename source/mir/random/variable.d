@@ -1260,6 +1260,7 @@ alias bernoulliVariable = bernoulliVar;
 ///
 @nogc nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto rv = bernoulliVar(0.7);
     static assert(isRandomVariable!(typeof(rv)));
     int[2] hist;
@@ -1333,6 +1334,7 @@ alias bernoulli2Variable = bernoulli2Var;
 ///
 @nogc nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto rv = bernoulli2Var;
     static assert(isRandomVariable!(typeof(rv)));
     int[2] hist;
@@ -1407,6 +1409,7 @@ alias geometricVariable = geometricVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto rv = geometricVar(0.1);
     static assert(isRandomVariable!(typeof(rv)));
     size_t[ulong] hist;
@@ -2091,6 +2094,7 @@ alias piecewiseConstantVariable = piecewiseConstantVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     // 50% of the time, generate a random number between 0 and 1
     // 50% of the time, generate a random number between 10 and 15
     double[] i = [0,  1, 10, 15];
