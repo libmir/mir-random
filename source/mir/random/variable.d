@@ -353,6 +353,7 @@ alias exponentialVariable = exponentialVar;
 {
     auto rv = exponentialVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -550,6 +551,7 @@ alias gammaVariable = gammaVar;
 {
     auto rv = gammaVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -640,6 +642,7 @@ alias betaVariable = betaVar;
 {
     auto rv = betaVariable(2.0, 5);
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -699,6 +702,7 @@ ChiSquaredVariable!T chiSquared(T = double)(size_t k)
 {
     auto rv = chiSquared(3);
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -769,6 +773,7 @@ alias fisherFVariable = fisherFVar;
 {
     auto rv = fisherFVar(3.0, 4);
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -836,6 +841,7 @@ alias studentTVariable = studentTVar;
 {
     auto rv = studentTVar(10.0);
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -977,6 +983,7 @@ alias normalVariable = normalVar;
 {
     auto rv = normalVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -1044,6 +1051,7 @@ alias logNormalVariable = logNormalVar;
 {
     auto rv = logNormalVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -1120,6 +1128,7 @@ alias cauchyVariable = cauchyVar;
 {
     auto rv = cauchyVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -1185,6 +1194,7 @@ alias extremeValueVariable = extremeValueVar;
 {
     auto rv = extremeValueVar;
     static assert(isRandomVariable!(typeof(rv)));
+    import mir.random.engine;
     auto x = rv(rne);
 }
 
@@ -1893,6 +1903,7 @@ alias discreteVariable = discreteVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto gen = Random(unpredictableSeed);
     // 10%, 20%, 20%, 40%, 10%
     auto weights = [10.0, 20, 20, 40, 10];
@@ -1933,6 +1944,7 @@ nothrow @safe version(mir_random_test) unittest
 ///
 nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto gen = Random(unpredictableSeed);
     // 10%, 20%, 20%, 40%, 10%
     auto weights = [10.0, 20, 20, 40, 10];
@@ -2213,6 +2225,7 @@ alias piecewiseLinearVariable = piecewiseLinearVar;
 ///
 nothrow @safe version(mir_random_test) unittest
 {
+    import mir.random.engine;
     auto gen = Random(unpredictableSeed);
     // increase the probability from 0 to 5
     // remain flat from 5 to 10
