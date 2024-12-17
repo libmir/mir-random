@@ -412,7 +412,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -473,7 +473,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
     foreach (i, c; cs)
     {
         size_t j = 0;
-        foreach (p1, p2; points.pairwise!refTuple)
+        foreach (p1, p2; points.pairwise!tuple)
         {
             auto iv = it(p1, p2, c);
             version(Flex_logging)
@@ -505,7 +505,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -566,7 +566,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
     foreach (i, c; cs)
     {
         size_t j = 0;
-        foreach (p1, p2; points.pairwise!refTuple)
+        foreach (p1, p2; points.pairwise!tuple)
         {
             auto iv = it(p1, p2, c);
             version(Flex_logging)
@@ -598,7 +598,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -659,7 +659,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
     foreach (i, c; cs)
     {
         size_t j = 0;
-        foreach (p1, p2; points.pairwise!refTuple)
+        foreach (p1, p2; points.pairwise!tuple)
         {
             auto iv = it(p1, p2, c);
             version(Flex_logging)
@@ -705,7 +705,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -782,7 +782,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
         foreach (i, c; cs)
         {
             size_t j = 0;
-            foreach (p1, p2; points.pairwise!refTuple)
+            foreach (p1, p2; points.pairwise!tuple)
             {
                 auto iv = it(p1, p2, c);
                 determineSqueezeAndHat(iv);
@@ -804,7 +804,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -862,7 +862,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
         foreach (i, c; cs)
         {
             size_t j = 0;
-            foreach (p1, p2; points.pairwise!refTuple)
+            foreach (p1, p2; points.pairwise!tuple)
             {
                 auto iv = it(p1, p2, c);
 
@@ -888,7 +888,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -939,7 +939,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
         foreach (i, c; cs)
         {
             size_t j = 0;
-            foreach (p1, p2; points.pairwise!refTuple)
+            foreach (p1, p2; points.pairwise!tuple)
             {
                 auto iv = it(p1, p2, c);
                 determineSqueezeAndHat(iv);
@@ -964,7 +964,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: fabs, approxEqual;
@@ -1019,7 +1019,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
         foreach (i, c; cs)
         {
             size_t j = 0;
-            foreach (p1, p2; points.pairwise!refTuple)
+            foreach (p1, p2; points.pairwise!tuple)
             {
                 auto iv = it(p1, p2, c);
                 determineSqueezeAndHat(iv);
@@ -1045,7 +1045,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
 @safe version(mir_random_test) unittest
 {
     import mir.ndslice.topology: pairwise;
-    import mir.functional: refTuple;
+    import mir.functional: tuple;
     import mir.random.flex.internal.transformations : transformInterval;
     import mir.random.flex.internal.types : determineType;
     import mir.math: approxEqual;
@@ -1092,7 +1092,7 @@ static if (is(typeof({ import mir.ndslice.slice; })))
         foreach (i, c; cs)
         {
             size_t j = 0;
-            foreach (p1, p2; points.pairwise!refTuple)
+            foreach (p1, p2; points.pairwise!tuple)
             {
                 auto iv = it(p1, p2, c);
                 determineSqueezeAndHat(iv);

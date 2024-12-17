@@ -147,7 +147,7 @@ auto randomSlice(T, G, size_t N)(scope ref G gen, size_t[N] lengths...)
         static if (isComplex!T)
         {
             alias R = typeof(T.init.re);
-            e = gen.rand!R + gen.rand!R * 1fi;
+            e = T(gen.rand!R, gen.rand!R);
         }
         else
             e = gen.rand!T;
@@ -197,6 +197,7 @@ nothrow @safe version(mir_random_test) unittest
     // mir.ndslice package is required for 'randomSlice', it can be found in 'mir-algorithm'
     static if (is(typeof({ import mir.ndslice.slice; })))
     {
+        import mir.complex;
         import mir.algorithm.iteration: all;
         import mir.math.common: fabs;
         // Using default RNE:
@@ -215,7 +216,7 @@ nothrow @safe version(mir_random_test) unittest
         sample = rng.randomSlice!double(15);
 
         // For complex numbers:
-        auto csample = randomSlice!cdouble(10);
+        auto csample = randomSlice!(Complex!double)(10);
     }
 }
 
