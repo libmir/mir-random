@@ -1896,7 +1896,7 @@ struct DiscreteVariable(T)
 /// ditto
 DiscreteVariable!T discreteVar(T)(T[] weights, bool cumulative = false)
     if (isNumeric!T)
-{   
+{
     return typeof(return)(weights, cumulative);
 }
 
@@ -2084,7 +2084,7 @@ struct PiecewiseConstantVariable(T, W = T)
 /// ditto
 PiecewiseConstantVariable!(T, W) piecewiseConstantVar(T, W)(T[] intervals, W[] weights, bool cumulative = false)
     if (isNumeric!T && isNumeric!W)
-{   
+{
     return typeof(return)(intervals, weights, cumulative);
 }
 
@@ -2219,7 +2219,7 @@ struct PiecewiseLinearVariable(T)
 /// ditto
 PiecewiseLinearVariable!T piecewiseLinearVar(T)(T[] points, T[] weights, T[] areas)
     if (isFloatingPoint!T)
-{   
+{
     return typeof(return)(points, weights, areas);
 }
 
